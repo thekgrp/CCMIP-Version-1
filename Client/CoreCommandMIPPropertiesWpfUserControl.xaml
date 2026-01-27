@@ -1,0 +1,25 @@
+<platformclient:PropertiesWpfUserControl x:Class="CoreCommandMIP.Client.CoreCommandMIPPropertiesWpfUserControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:CoreCommandMIP.Client"
+             xmlns:platformclient="clr-namespace:VideoOS.Platform.Client;assembly=VideoOS.Platform"
+             mc:Ignorable="d" 
+             Height="71" Width="267">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Label x:Name="label" Content="Select an item:" Grid.Row="0"/>
+        <ComboBox x:Name="comboBoxID" Grid.Row="1" Width="200" SelectionChanged="comboBoxID_SelectionChanged"/>
+        <TextBlock x:Name="remoteSummaryTextBlock"
+                   Grid.Row="2"
+                   Margin="0,8,0,0"
+                   TextWrapping="Wrap"
+                   Foreground="Gray"
+                   Text="Remote server not configured"/>
+    </Grid>
+</platformclient:PropertiesWpfUserControl>

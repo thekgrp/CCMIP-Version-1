@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30729</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{BEDBF651-31EF-4C8F-B713-88985196E63F}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>CoreCommandMIP</RootNamespace>
+    <AssemblyName>CoreCommandMIP</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <FileUpgradeFlags>
+    </FileUpgradeFlags>
+    <UpgradeBackupLocation>
+    </UpgradeBackupLocation>
+    <OldToolsVersion>4.0</OldToolsVersion>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.1901.177" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System" />
+    <Reference Include="System.Core">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml.Linq">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data.DataSetExtensions">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
+    <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="*" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Admin\CoreCommandMIPAddUserControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPAddUserControl.Designer.cs">
+      <DependentUpon>CoreCommandMIPAddUserControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPHelpPage.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPHelpPage.Designer.cs">
+      <DependentUpon>CoreCommandMIPHelpPage.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPItemManager.cs" />
+    <Compile Include="Admin\CoreCommandMIPTabPlugin.cs" />
+    <Compile Include="Admin\CoreCommandMIPTabUserControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPTabUserControl.Designer.cs">
+      <DependentUpon>CoreCommandMIPTabUserControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPToolsOptionDialogPlugin.cs" />
+    <Compile Include="Admin\CoreCommandMIPToolsOptionDialogUserControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPToolsOptionDialogUserControl.designer.cs">
+      <DependentUpon>CoreCommandMIPToolsOptionDialogUserControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPUserControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Admin\CoreCommandMIPUserControl.Designer.cs">
+      <DependentUpon>CoreCommandMIPUserControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Background\CoreCommandMIPBackgroundPlugin.cs" />
+    <Compile Include="Background\TrackAlarmEventHandler.cs" />
+    <Compile Include="Client\CoreCommandMIPPropertiesWpfUserControl.xaml.cs">
+      <DependentUpon>CoreCommandMIPPropertiesWpfUserControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Client\CoreCommandMIPSettingsPanelPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPSettingsPanelControl.xaml.cs">
+      <DependentUpon>CoreCommandMIPSettingsPanelControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Client\CoreCommandMIPSidePanelPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPSidePanelWpfUserControl.xaml.cs">
+      <DependentUpon>CoreCommandMIPSidePanelWpfUserControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Client\CoreCommandMIPTrackListViewItemManager.cs" />
+    <Compile Include="Client\CoreCommandMIPTrackListViewItemPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPTrackListViewItemWpfUserControl.xaml.cs">
+      <DependentUpon>CoreCommandMIPTrackListViewItemWpfUserControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Client\CoreCommandMIPViewItemPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPViewItemManager.cs" />
+    <Compile Include="Client\CoreCommandMIPViewItemToolbarPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPViewItemWpfUserControl.xaml.cs">
+      <DependentUpon>CoreCommandMIPViewItemWpfUserControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Client\CoreCommandMIPClientAction.cs" />
+    <Compile Include="Client\CoreCommandMIPViewLayout.cs" />
+    <Compile Include="Client\CoreCommandMIPWorkSpacePlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPWorkSpaceToolbarPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPWorkSpaceViewItemManager.cs" />
+    <Compile Include="Client\CoreCommandMIPWorkSpaceViewItemPlugin.cs" />
+    <Compile Include="Client\CoreCommandMIPWorkSpaceViewItemWpfUserControl.xaml.cs">
+      <DependentUpon>CoreCommandMIPWorkSpaceViewItemWpfUserControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Client\MapboxTemplate.cs" />
+    <Compile Include="Client\MapTemplate.cs" />
+    <Compile Include="Client\MetadataStore.cs" />
+    <Compile Include="Client\RegionModels.cs" />
+    <Compile Include="Client\RemoteServerDataProvider.cs" />
+    <Compile Include="Client\TrackAlarmManager.cs" />
+    <Compile Include="Client\TrackFetchResult.cs" />
+    <Compile Include="Client\TrackMessaging.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="CoreCommandMIPDefinition.cs" />
+    <Compile Include="RemoteServerSettings.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Admin\CoreCommandMIPAddUserControl.resx">
+      <DependentUpon>CoreCommandMIPAddUserControl.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Admin\CoreCommandMIPTabUserControl.resx">
+      <DependentUpon>CoreCommandMIPTabUserControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Admin\CoreCommandMIPToolsOptionDialogUserControl.resx">
+      <DependentUpon>CoreCommandMIPToolsOptionDialogUserControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Server.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Admin\CoreCommandMIPHelpPage.resx">
+      <DependentUpon>CoreCommandMIPHelpPage.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Admin\CoreCommandMIPUserControl.resx">
+      <DependentUpon>CoreCommandMIPUserControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="assets\aerial.jpg">`n      <CopyToOutputDirectory>Always</CopyToOutputDirectory>`n    </Content>
+    <Content Include="assets\arrow.png">`n      <CopyToOutputDirectory>Always</CopyToOutputDirectory>`n    </Content>
+    <Content Include="assets\bird.png">`n      <CopyToOutputDirectory>Always</CopyToOutputDirectory>`n    </Content>
+    <Content Include="assets\drone.png">`n      <CopyToOutputDirectory>Always</CopyToOutputDirectory>`n    </Content>
+    <Content Include="assets\logo.jpg" />
+    <Content Include="assets\person.png">`n      <CopyToOutputDirectory>Always</CopyToOutputDirectory>`n    </Content>
+    <Content Include="assets\vehicle.png">`n      <CopyToOutputDirectory>Always</CopyToOutputDirectory>`n    </Content>
+    <Content Include="plugin.def">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Resource Include="Resources\DummyItem.png" />
+    <Resource Include="Resources\WorkSpaceIcon.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="Client\CoreCommandMIPPropertiesWpfUserControl.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Client\CoreCommandMIPSettingsPanelControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Client\CoreCommandMIPSidePanelWpfUserControl.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Client\CoreCommandMIPTrackListViewItemWpfUserControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Client\CoreCommandMIPViewItemWpfUserControl.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Client\CoreCommandMIPWorkSpaceViewItemWpfUserControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ANALYTICS_EVENTS_GUIDE.md" />
+    <None Include="ARROWS_AND_REGIONS_STATUS.md" />
+    <None Include="Directory.Build.props" />
+    <None Include="GUID_PARSING_STATUS.md" />
+    <None Include="MAPBOX_INTEGRATION_GUIDE.md" />
+    <None Include="POLLING_INTERVAL_CONFIG.md" />
+    <None Include="REGIONS_DEBUGGING_GUIDE.md" />
+    <None Include="REGION_SELECTION_FEATURE.md" />
+    <None Include="SERVER_SIDE_ALARMS_COMPLETE.md" />
+    <None Include="SOURCES_FIELD_IMPLEMENTATION.md" />
+    <None Include="URGENT_REGIONS_ICONS_FIX.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Packaged\" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+  <PropertyGroup>
+    <PostBuildEvent>
+    </PostBuildEvent>
+  </PropertyGroup>
+</Project>
