@@ -6,13 +6,24 @@ using VideoOS.Platform.Messaging;
 namespace CoreCommandMIP.Background
 {
 	/// <summary>
-	/// Server-side component that handles Track Alarm events and creates XProtect logs.
-	/// This runs on the Event Server and processes alarm messages from Smart Client.
+	/// Server-side component that handles Track Alarm messages and creates XProtect User-Defined Events.
+	/// These events can trigger alarms in Alarm Manager through Management Client rules.
 	/// </summary>
 	public class TrackAlarmEventHandler
 	{
 		private readonly HashSet<long> _processedAlarms = new HashSet<long>();
 		private object _messageReceiver;
+		private readonly FQID _pluginFqid;
+		private readonly EventTriggerService _eventTrigger;
+		
+	public TrackAlarmEventHandler()
+	{
+		// Create simple FQID for event source
+		_pluginFqid = new FQID();
+		
+		// Create event trigger service
+		_eventTrigger = new EventTriggerService(CoreCommandMIPDefinition.CoreCommandMIPPluginId);
+	}
 		
 		/// <summary>
 		/// Helper to log to both XProtect and Debug Output
@@ -28,29 +39,20 @@ namespace CoreCommandMIP.Background
 		/// </summary>
 		public void Init()
 		{
+			LogBoth(false, $"=== Initializing - Message ID: {CoreCommandMIPDefinition.TrackAlarmMessageId} ===");
+			
 			try
 			{
-				// Register to receive Track Alarm messages from Smart Client
 				_messageReceiver = EnvironmentManager.Instance.RegisterReceiver(
 					new MessageReceiver(HandleTrackAlarmMessage),
 					new MessageIdFilter(CoreCommandMIPDefinition.TrackAlarmMessageId));
 
-				EnvironmentManager.Instance.Log(
-					false,
-					"CoreCommandMIP.TrackAlarm",
-					"Track Alarm Event Handler initialized on Event Server",
-					null);
-				
-				System.Diagnostics.Debug.WriteLine("TrackAlarmEventHandler: Registered for message ID: " + CoreCommandMIPDefinition.TrackAlarmMessageId);
+				LogBoth(false, "? READY - Listening for alarm messages from Smart Client, will send User-Defined Events");
 			}
 			catch (Exception ex)
 			{
-				EnvironmentManager.Instance.Log(
-					true,
-					"CoreCommandMIP.TrackAlarm",
-					$"Failed to initialize event handler: {ex.Message}",
-					null);
-				System.Diagnostics.Debug.WriteLine($"TrackAlarmEventHandler Init failed: {ex}");
+				LogBoth(true, $"? INIT FAILED: {ex.Message}");
+				throw;
 			}
 		}
 
@@ -67,41 +69,39 @@ namespace CoreCommandMIP.Background
 			_processedAlarms.Clear();
 		}
 
-	/// <summary>
-	/// Handle incoming track alarm messages from Smart Client.
-	/// </summary>
-	private object HandleTrackAlarmMessage(Message message, FQID destination, FQID source)
-	{
-		LogBoth(false, $"? MESSAGE RECEIVED from: {source?.ObjectId}");
-		
-		try
+		/// <summary>
+		/// Handle incoming track alarm messages from Smart Client.
+		/// </summary>
+		private object HandleTrackAlarmMessage(Message message, FQID destination, FQID source)
 		{
-			if (message?.Data is TrackAlarmData alarmData)
+			LogBoth(false, $"? MESSAGE RECEIVED from: {source?.ObjectId}");
+			
+			try
 			{
-				LogBoth(false, $"? Processing Track {alarmData.TrackId} - {alarmData.Classification} at {alarmData.Site}");
-				ProcessTrackAlarm(alarmData);
+				if (message?.Data is TrackAlarmData alarmData)
+				{
+					LogBoth(false, $"? Processing Track {alarmData.TrackId} - {alarmData.Classification} at {alarmData.Site}");
+					ProcessTrackAlarm(alarmData);
+				}
+				else
+				{
+					LogBoth(true, $"? Invalid message data type: {message?.Data?.GetType().FullName}");
+				}
 			}
-			else
+			catch (Exception ex)
 			{
-				LogBoth(true, $"? Invalid message data type: {message?.Data?.GetType().FullName}");
+				LogBoth(true, $"? Message handling error: {ex.Message}");
 			}
-		}
-		catch (Exception ex)
-		{
-			LogBoth(true, $"? Message handling error: {ex.Message}");
+
+			return null;
 		}
 
-		return null;
-	}
-
 	/// <summary>
-	/// Process a track alarm and create appropriate XProtect log entries.
-	/// These appear in Management Client ? Log tab and can trigger rules.
+	/// Process a track alarm and send User-Defined Event to XProtect.
+	/// Management Client rules can convert these events to alarms.
 	/// </summary>
 	private void ProcessTrackAlarm(TrackAlarmData alarmData)
 	{
-		LogBoth(false, $"? Processing alarm for Track {alarmData.TrackId}");
-		
 		// Prevent duplicate processing
 		if (_processedAlarms.Contains(alarmData.TrackId))
 		{
@@ -110,42 +110,73 @@ namespace CoreCommandMIP.Background
 		}
 
 		_processedAlarms.Add(alarmData.TrackId);
-		
 
-		// Create detailed log entry (appears in Management Client logs)
-		var priorityText = alarmData.Priority <= 2 ? "[HIGH]" :
-		                   alarmData.Priority <= 5 ? "[MEDIUM]" :
-		                   "[LOW]";
+		try
+		{
+			var priorityText = GetPriorityText(alarmData.Priority);
 
-		var logMessage = string.Format(
-			"{0} TRACK ALARM - Track {1} ({2}) detected at {3}\n" +
-			"Location: {4:F4}°, {5:F4}° | Altitude: {6:F1}m | Velocity: {7:F1}m/s | Confidence: {8:P0}",
-			priorityText,
-			alarmData.TrackId,
-			alarmData.Classification,
-			alarmData.Site,
-			alarmData.Latitude,
-			alarmData.Longitude,
-			alarmData.Altitude,
-			alarmData.Velocity,
-			alarmData.Confidence);
+			// Generate C2 Alarm ID (unique identifier for this alarm instance)
+			var c2AlarmId = $"T{alarmData.TrackId}_{alarmData.Timestamp:yyyyMMddHHmmss}";
 
-		// Log as error for high visibility (shows as red/yellow in Management Client)
-		EnvironmentManager.Instance.Log(
-			alarmData.Priority <= 3, // isError=true for high/medium priority
-			"CoreCommandMIP.TrackAlarm",
-			logMessage,
-			null);
-		
-		LogBoth(false, $"? ALARM CREATED for Track {alarmData.TrackId} - {priorityText}");
+			// Build event message
+			var message = $"Track {alarmData.TrackId} ({alarmData.Classification}) detected at {alarmData.Site}";
 
-		// If track stops alarming after 30 seconds, allow new alarm
+			// Generate site-specific event type names
+			var alertEventName = $"C2.Alert - {alarmData.Site}";
+			var alarmEventName = $"C2.Alarm - {alarmData.Site}";
+
+			// Create C2EventData with all metadata
+			var eventData = new C2EventData
+			{
+				EventType = alarmData.Priority <= 2 ? alarmEventName : alertEventName,
+				C2AlarmId = c2AlarmId,
+				TrackId = alarmData.TrackId,
+				Message = message,
+				Severity = alarmData.Priority <= 2 ? EventSeverity.High : EventSeverity.Medium,
+				Timestamp = alarmData.Timestamp,
+				Classification = alarmData.Classification,
+				Latitude = alarmData.Latitude,
+				Longitude = alarmData.Longitude,
+				Altitude = alarmData.Altitude,
+				Velocity = alarmData.Velocity,
+				Confidence = alarmData.Confidence,
+				Site = alarmData.Site,
+				CameraIds = new List<Guid>() // TODO: Get from configuration
+			};
+
+			// Trigger the event
+			bool success = _eventTrigger.TriggerEvent(eventData);
+
+			if (success)
+			{
+				LogBoth(false, $"? EVENT TRIGGERED for Track {alarmData.TrackId} - {priorityText}");
+				LogBoth(false, $"  ? C2 Alarm ID: {c2AlarmId}");
+				LogBoth(false, $"  ? Event Type: {eventData.EventType}");
+			}
+			else
+			{
+				LogBoth(true, $"? Failed to trigger event for Track {alarmData.TrackId}");
+			}
+		}
+		catch (Exception ex)
+		{
+			LogBoth(true, $"? Failed to process alarm for Track {alarmData.TrackId}: {ex.Message}");
+		}
+
+		// Allow new alarm after 30 seconds
 		System.Threading.Tasks.Task.Delay(30000).ContinueWith(_ =>
 		{
 			_processedAlarms.Remove(alarmData.TrackId);
 			LogBoth(false, $"? Track {alarmData.TrackId} can alarm again");
 		});
 	}
+
+		private string GetPriorityText(int priority)
+		{
+			return priority <= 2 ? "[HIGH]" :
+			       priority <= 5 ? "[MEDIUM]" :
+			       "[LOW]";
+		}
 	}
 
 	/// <summary>

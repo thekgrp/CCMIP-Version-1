@@ -55,7 +55,8 @@ namespace CoreCommandMIP.Admin
     /// </summary>
     public class CoreCommandMIPItemManager : ItemManager
     {
-        private CoreCommandMIPUserControl _userControl;
+        private UserControl _userControl;  
+        private CoreCommandMIPUserControlTabbed _tabbedControl; // Keep typed reference
         private Guid _kind;
 
         #region Constructors
@@ -91,8 +92,10 @@ namespace CoreCommandMIP.Admin
         /// <returns></returns>
         public override UserControl GenerateDetailUserControl()
         {
-            _userControl = new CoreCommandMIPUserControl();
-            _userControl.ConfigurationChangedByUser += new EventHandler(ConfigurationChangedByUserHandler);
+            // Use new tabbed interface (Phase 2 implementation)
+            _tabbedControl = new CoreCommandMIPUserControlTabbed();
+            _tabbedControl.ConfigurationChangedByUser += new EventHandler(ConfigurationChangedByUserHandler);
+            _userControl = _tabbedControl;
             return _userControl;
         }
 
@@ -101,11 +104,12 @@ namespace CoreCommandMIP.Admin
         /// </summary>
         public override void ReleaseUserControl()
         {
-            if (_userControl != null)
+            if (_tabbedControl != null)
             {
-                _userControl.ConfigurationChangedByUser -= new EventHandler(ConfigurationChangedByUserHandler);
-                _userControl = null;
+                _tabbedControl.ConfigurationChangedByUser -= new EventHandler(ConfigurationChangedByUserHandler);
+                _tabbedControl = null;
             }
+            _userControl = null;
         }
 
         /// <summary>
@@ -114,9 +118,9 @@ namespace CoreCommandMIP.Admin
         public override void ClearUserControl()
         {
             CurrentItem = null;
-            if (_userControl != null)
+            if (_tabbedControl != null)
             {
-                _userControl.ClearContent();
+                _tabbedControl.ClearContent();
             }
         }
 
@@ -127,9 +131,9 @@ namespace CoreCommandMIP.Admin
         public override void FillUserControl(Item item)
         {
             CurrentItem = item;
-            if (_userControl != null)
+            if (_tabbedControl != null)
             {
-                _userControl.FillContent(item);
+                _tabbedControl.FillContent(item);
             }
         }
 
@@ -171,9 +175,9 @@ namespace CoreCommandMIP.Admin
         /// <returns></returns>
         public override string GetItemName()
         {
-            if (_userControl != null)
+            if (_tabbedControl != null)
             {
-                return _userControl.DisplayName;
+                return _tabbedControl.DisplayName;
             }
             return "";
         }
@@ -184,9 +188,9 @@ namespace CoreCommandMIP.Admin
         /// <param name="name"></param>
         public override void SetItemName(string name)
         {
-            if (_userControl != null)
+            if (_tabbedControl != null)
             {
-                _userControl.DisplayName = name;
+                _tabbedControl.DisplayName = name;
             }
         }
 
@@ -201,15 +205,15 @@ namespace CoreCommandMIP.Admin
         {
             if (CurrentItem != null)
             {
-                if (_userControl != null)
+                if (_tabbedControl != null)
                 {
-                    if (!_userControl.TryValidate(out var errorMessage))
+                    if (!_tabbedControl.TryValidate(out var errorMessage))
                     {
                         MessageBox.Show(errorMessage, "Remote server configuration", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return false;
                     }
                     //Get user entered fields
-                    _userControl.UpdateItem(CurrentItem);
+                    _tabbedControl.UpdateItem(CurrentItem);
                 }
 
                 //In this template we save configuration on the VMS system
@@ -230,9 +234,9 @@ namespace CoreCommandMIP.Admin
         public override Item CreateItem(Item parentItem, FQID suggestedFQID)
         {
             CurrentItem = new Item(suggestedFQID, "Enter a name");
-            if (_userControl != null)
+            if (_tabbedControl != null)
             {
-                _userControl.FillContent(CurrentItem);
+                _tabbedControl.FillContent(CurrentItem);
             }
             Configuration.Instance.SaveItemConfiguration(CoreCommandMIPDefinition.CoreCommandMIPPluginId, CurrentItem);
             return CurrentItem;

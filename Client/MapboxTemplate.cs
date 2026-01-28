@@ -53,19 +53,69 @@ mapboxgl.accessToken = '{accessToken}';
 
 const map = new mapboxgl.Map({{
     container: 'map',
-    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+    style: '__3D_ENABLED__' === 'True' ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/streets-v12',
     center: [__LON__, __LAT__],
     zoom: __ZOOM__,
-    pitch: 0,
-    bearing: 0
+    pitch: __PITCH__,
+    bearing: __BEARING__
 }});
 
 map.addControl(new mapboxgl.NavigationControl());
 map.addControl(new mapboxgl.FullscreenControl());
 
+// Add 3D terrain and buildings if enabled
+'__3D_ENABLED__' === 'True' && map.on('load', () => {{
+    console.log('=== Enabling 3D features ===');
+    
+    // Add 3D terrain
+    if ('__3D_TERRAIN__' === 'True') {{
+        console.log('Adding 3D terrain');
+        map.addSource('mapbox-dem', {{
+            'type': 'raster-dem',
+            'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+            'tileSize': 512,
+            'maxzoom': 14
+        }});
+        map.setTerrain({{ 'source': 'mapbox-dem', 'exaggeration': 1.5 }});
+    }}
+    
+    // Add 3D buildings
+    if ('__3D_BUILDINGS__' === 'True') {{
+        console.log('Adding 3D buildings');
+        const layers = map.getStyle().layers;
+        const labelLayerId = layers.find(
+            (layer) => layer.type === 'symbol' && layer.layout['text-field']
+        ).id;
+        
+        map.addLayer({{
+            'id': '3d-buildings',
+            'source': 'composite',
+            'source-layer': 'building',
+            'filter': ['==', 'extrude', 'true'],
+            'type': 'fill-extrusion',
+            'minzoom': 15,
+            'paint': {{
+                'fill-extrusion-color': '#aaa',
+                'fill-extrusion-height': [
+                    'interpolate', ['linear'], ['zoom'],
+                    15, 0,
+                    15.05, ['get', 'height']
+                ],
+                'fill-extrusion-base': [
+                    'interpolate', ['linear'], ['zoom'],
+                    15, 0,
+                    15.05, ['get', 'min_height']
+                ],
+                'fill-extrusion-opacity': 0.6
+            }}
+        }}, labelLayerId);
+    }}
+    
+    console.log('=== 3D features enabled ===');
+}});
+
 const DEFAULT_TAIL = __TAIL__;
 let userZoom = __ZOOM__;
-let applyZoomOnNextUpdate = false;
 let regionLayers = [];
 let trackMarkers = {{}};
 
@@ -95,9 +145,6 @@ map.on('zoomend', () => {{
 }});
 
 window.getCurrentZoom = () => map.getZoom();
-window.setApplyZoom = (shouldApply) => {{
-    applyZoomOnNextUpdate = shouldApply;
-}};
 
 window.clearRegions = () => {{
     console.log('Clearing', regionLayers.length, 'regions');
@@ -209,10 +256,7 @@ window.updateTracks = (tracks) => {{
         }}
     }});
     
-    if (applyZoomOnNextUpdate && !bounds.isEmpty()) {{
-        map.fitBounds(bounds, {{padding: 50}});
-        applyZoomOnNextUpdate = false;
-    }}
+    // Map stays centered on site - no auto-panning to tracks
 }};
 
 window.clearInactiveTracks = (activeIds) => {{

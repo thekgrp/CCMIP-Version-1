@@ -13,9 +13,10 @@
             <RowDefinition Height="18"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+        
+        <!-- Header -->
         <Grid Grid.Row="0" x:Name="_headerGrid">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="auto"/>
@@ -24,32 +25,107 @@
             <TextBlock Grid.Column="0" Margin="0,0,5,0">You are now running: </TextBlock>
             <TextBlock Grid.Column="1" x:Name="_nameTextBlock"/>
         </Grid>
+        
+        <!-- Site Selector -->
         <Grid Grid.Row="1" Margin="0,6,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Margin="0,0,10,0" VerticalAlignment="Center">Site:</TextBlock>
             <ComboBox x:Name="_siteComboBox"
                       Grid.Column="1"
                       Height="24"
                       SelectionChanged="OnSiteSelectionChanged"/>
+            <Button x:Name="_testRegionButton" Grid.Column="2" Content="Test Region" Padding="8,2" Margin="5,0" Click="TestRegionButton_Click"/>
+            <Button x:Name="_clearCacheButton" Grid.Column="3" Content="Clear Cache" Padding="8,2" Margin="5,0" Click="ClearCacheButton_Click"/>
+            <Button x:Name="_debugConsoleButton" Grid.Column="4" Content="Debug Console" Padding="8,2" Margin="5,0" Click="DebugConsoleButton_Click"/>
         </Grid>
-        <TextBlock Grid.Row="2"
-                   x:Name="_remoteSummaryTextBlock"
-                   Margin="0,6,0,0"
-                   TextWrapping="Wrap"
-                   Foreground="DarkSlateGray"/>
-        <TextBlock Grid.Row="3"
-                   x:Name="_statusTextBlock"
-                   Margin="0,6,0,0"
-                   TextWrapping="Wrap"/>
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Right">
-            <Button x:Name="_testRegionButton" Content="Test Region" Padding="8,2" Margin="5,0" Click="TestRegionButton_Click"/>
-            <Button x:Name="_debugConsoleButton" Content="Debug Console" Padding="8,2" Margin="5,0" Click="DebugConsoleButton_Click"/>
+        
+        <!-- Status Bar -->
+        <StackPanel Grid.Row="2" Margin="0,6,0,0">
+            <TextBlock x:Name="_remoteSummaryTextBlock"
+                       TextWrapping="Wrap"
+                       Foreground="DarkSlateGray"/>
+            <TextBlock x:Name="_statusTextBlock"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0"/>
         </StackPanel>
-        <Border Grid.Row="4" BorderBrush="Gray" BorderThickness="1" Margin="0,8,0,0">
-            <wv2:WebView2 x:Name="_mapView" MinHeight="200" DefaultBackgroundColor="#FF1A1A1A"/>
-        </Border>
+        
+        <!-- Split View: Track List (Left) and Map (Right) -->
+        <Grid Grid.Row="3" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" MinWidth="200"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- Track List Panel (Left) -->
+            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Background="White">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Track List Header -->
+                    <Border Grid.Row="0" Background="#F0F0F0" BorderBrush="Gray" BorderThickness="0,0,0,1" Padding="8,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" FontWeight="Bold" FontSize="12">Active Tracks</TextBlock>
+                            <TextBlock Grid.Column="1" x:Name="_trackCountTextBlock" FontSize="11" Foreground="DarkGray"/>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- Track List DataGrid -->
+                    <DataGrid Grid.Row="1" 
+                              x:Name="_trackListDataGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              RowHeight="28"
+                              SelectionChanged="TrackListDataGrid_SelectionChanged"
+                              CanUserResizeRows="False"
+                              CanUserSortColumns="False"
+                              BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding TrackId}" Width="50"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding ClassificationLabel}" Width="80"/>
+                            <DataGridTextColumn Header="Source" Binding="{Binding SourcesDisplay}" Width="*"/>
+                        </DataGrid.Columns>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#0078D4"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#E5F3FF"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                    </DataGrid>
+                </Grid>
+            </Border>
+            
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="LightGray" ShowsPreview="True"/>
+            
+            <!-- Map Panel (Right) -->
+            <Border Grid.Column="2" BorderBrush="Gray" BorderThickness="1">
+                <wv2:WebView2 x:Name="_mapView" MinHeight="200" DefaultBackgroundColor="#FF1A1A1A"/>
+            </Border>
+        </Grid>
     </Grid>
 </platformclient:ViewItemWpfUserControl>

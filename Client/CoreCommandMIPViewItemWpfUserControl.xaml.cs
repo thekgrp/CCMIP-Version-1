@@ -36,20 +36,19 @@ namespace CoreCommandMIP.Client
     #region Component private class variables
 
         private CoreCommandMIPViewItemManager _viewItemManager;
-        private object _themeChangedReceiver;
-        private SmartMapLocation _lastLocation;
-        private Task _mapDocumentTask;
-        private TaskCompletionSource<bool> _mapReadySource;
-		private CancellationTokenSource _autoPollCancellation;
-		private Task _autoPollTask;
-		private IReadOnlyList<SmartMapLocation> _latestTracks = Array.Empty<SmartMapLocation>();
-		private long? _selectedTrackId;
-		private object _trackSelectionReceiver;
-		private MetadataStore _metadataStore;
+    private object _themeChangedReceiver;
+    private SmartMapLocation _lastLocation;
+    private Task _mapDocumentTask;
+    private TaskCompletionSource<bool> _mapReadySource;
+	private CancellationTokenSource _autoPollCancellation;
+	private Task _autoPollTask;
+	private IReadOnlyList<SmartMapLocation> _latestTracks = Array.Empty<SmartMapLocation>();
+	private long? _selectedTrackId;
+	private object _trackSelectionReceiver;
+	private MetadataStore _metadataStore;
 		private long? _lastTrackListCounter;
 		private SmartMapLocation _pendingTrackSelection;
 		private Guid? _pendingTrackSelectionSiteId;
-		private bool _shouldApplyZoomOnNextUpdate;
 		private double _userZoomLevel;
 		private List<RegionDefinition> _siteRegions = new List<RegionDefinition>();
 		private TrackAlarmManager _alarmManager;
@@ -117,13 +116,13 @@ namespace CoreCommandMIP.Client
             _viewItemManager.PropertyChangedEvent += new EventHandler(ViewItemManagerPropertyChangedEvent);
             _viewItemManager.ContextUpdated += ViewItemManagerContextUpdated;
 
-            _themeChangedReceiver = EnvironmentManager.Instance.RegisterReceiver(new MessageReceiver(ThemeChangedIndicationHandler),
-                                             new MessageIdFilter(MessageId.SmartClient.ThemeChangedIndication));
+        _themeChangedReceiver = EnvironmentManager.Instance.RegisterReceiver(new MessageReceiver(ThemeChangedIndicationHandler),
+                                         new MessageIdFilter(MessageId.SmartClient.ThemeChangedIndication));
 
-			_trackSelectionReceiver = EnvironmentManager.Instance.RegisterReceiver(new MessageReceiver(TrackSelectionIndicationHandler),
-				new MessageIdFilter(CoreCommandMIPDefinition.TrackSelectedMessageId));
+		_trackSelectionReceiver = EnvironmentManager.Instance.RegisterReceiver(new MessageReceiver(TrackSelectionIndicationHandler),
+			new MessageIdFilter(CoreCommandMIPDefinition.TrackSelectedMessageId));
 
-        }
+    }
 
         private void RemoveApplicationEventListeners()
         {
@@ -131,14 +130,14 @@ namespace CoreCommandMIP.Client
             _viewItemManager.PropertyChangedEvent -= new EventHandler(ViewItemManagerPropertyChangedEvent);
             _viewItemManager.ContextUpdated -= ViewItemManagerContextUpdated;
 
-            EnvironmentManager.Instance.UnRegisterReceiver(_themeChangedReceiver);
-            _themeChangedReceiver = null;
-			if (_trackSelectionReceiver != null)
-			{
-				EnvironmentManager.Instance.UnRegisterReceiver(_trackSelectionReceiver);
-				_trackSelectionReceiver = null;
-			}
-        }
+        EnvironmentManager.Instance.UnRegisterReceiver(_themeChangedReceiver);
+        _themeChangedReceiver = null;
+		if (_trackSelectionReceiver != null)
+		{
+			EnvironmentManager.Instance.UnRegisterReceiver(_trackSelectionReceiver);
+			_trackSelectionReceiver = null;
+		}
+    }
 
         /// <summary>
         /// Method that is called immediately after the view item is displayed.
@@ -197,17 +196,40 @@ namespace CoreCommandMIP.Client
             {
                 FireRightClickEvent(e);
             }
-        }
+    }
 
-        private void ViewItemWpfUserControl_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private void ViewItemWpfUserControl_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
         {
-            if (e.ChangedButton == MouseButton.Left)
-            {
-                FireDoubleClickEvent();
-            }
+            FireDoubleClickEvent();
         }
+    }
 
-        private async void TestRegionButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Handle track selection from the integrated track list
+    /// </summary>
+    private void TrackListDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_trackListDataGrid.SelectedItem is SmartMapLocation selectedTrack)
+        {
+            _selectedTrackId = selectedTrack.TrackId;
+            _lastLocation = selectedTrack;
+            // Don't pan to track - keep map centered on site
+            UpdateLocationDetails(selectedTrack);
+            PersistMetadata(selectedTrack);
+            
+            // Broadcast selection to other views
+            var message = new TrackSelectionMessage(_viewItemManager.SomeId, selectedTrack);
+            EnvironmentManager.Instance.PostMessage(
+                new VideoOS.Platform.Messaging.Message(CoreCommandMIPDefinition.TrackSelectedMessageId, message),
+                null, null);
+                
+            System.Diagnostics.Debug.WriteLine($"Track {selectedTrack.TrackId} selected from integrated list (map stays centered on site)");
+        }
+    }
+
+    private async void TestRegionButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -270,22 +292,73 @@ namespace CoreCommandMIP.Client
                     _mapView.CoreWebView2.OpenDevToolsWindow();
                     _statusTextBlock.Text = "DevTools opened - check Console tab for JavaScript errors";
                 }
-            }
-            catch (Exception ex)
-            {
-                _statusTextBlock.Text = $"Failed to open DevTools: {ex.Message}";
-            }
+        }
+        catch (Exception ex)
+        {
+            _statusTextBlock.Text = $"Failed to open DevTools: {ex.Message}";
+        }
+    }
+
+    private async void ClearCacheButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = System.Windows.MessageBox.Show(
+            "This will clear all cached map tiles and data.\n\n" +
+            "The view will reload after clearing cache.\n\n" +
+            "Map tiles will be re-downloaded as needed.\n\n" +
+            "Do you want to proceed?",
+            "Clear Map Cache",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+
+        if (result != System.Windows.MessageBoxResult.Yes)
+        {
+            return;
         }
 
-        /// <summary>
-        /// Signals that the form is right clicked
-        /// </summary>
-        public event EventHandler RightClickEvent;
+        try
+        {
+            _statusTextBlock.Text = "Clearing cache...";
+            
+            // Clear the cache
+            RemoteServerSettings.ClearMapCache();
+            
+            _statusTextBlock.Text = "Cache cleared! Reloading map...";
+            
+            // Reload the map
+            InvalidateMapDocument();
+            await System.Threading.Tasks.Task.Delay(500);
+            await InitializeMapDocumentAsync();
+            
+            _statusTextBlock.Text = "Cache cleared and map reloaded successfully!";
+            
+            System.Windows.MessageBox.Show(
+                "Map cache cleared successfully!\n\n" +
+                "The map has been reloaded with fresh data.",
+                "Cache Cleared",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            _statusTextBlock.Text = "Error clearing cache";
+            System.Windows.MessageBox.Show(
+                $"Error clearing map cache:\n\n{ex.Message}",
+                "Error",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+            System.Diagnostics.Debug.WriteLine($"Cache clear error: {ex}");
+        }
+    }
 
-        /// <summary>
-        /// Activates the RightClickEvent
-        /// </summary>
-        /// <param name="e">Event args</param>
+    /// <summary>
+    /// Signals that the form is right clicked
+    /// </summary>
+    public event EventHandler RightClickEvent;
+
+    /// <summary>
+    /// Activates the RightClickEvent
+    /// </summary>
+    /// <param name="e">Event args</param>
         protected virtual void FireRightClickEvent(EventArgs e)
         {
             if (RightClickEvent != null)
@@ -328,32 +401,33 @@ namespace CoreCommandMIP.Client
             return null;
         }
 
-		private object TrackSelectionIndicationHandler(VideoOS.Platform.Messaging.Message message, FQID destination, FQID source)
+	private object TrackSelectionIndicationHandler(VideoOS.Platform.Messaging.Message message, FQID destination, FQID source)
+	{
+		if (message?.Data is TrackSelectionMessage selection && selection.Track != null)
 		{
-			if (message?.Data is TrackSelectionMessage selection && selection.Track != null)
+			Dispatcher.Invoke(() =>
 			{
-				Dispatcher.Invoke(() =>
+				if (selection.ConfigurationId != _viewItemManager.SomeId)
 				{
-					if (selection.ConfigurationId != _viewItemManager.SomeId)
-					{
-						_pendingTrackSelection = selection.Track;
-						_pendingTrackSelectionSiteId = selection.ConfigurationId;
-						_viewItemManager.SomeId = selection.ConfigurationId;
-						return;
-					}
-
-					_pendingTrackSelection = null;
-					_pendingTrackSelectionSiteId = null;
-					_selectedTrackId = selection.Track.TrackId;
-					_lastLocation = selection.Track;
-					_shouldApplyZoomOnNextUpdate = true;
-					UpdateLocationDetails(selection.Track);
-				});
+					_pendingTrackSelection = selection.Track;
+					_pendingTrackSelectionSiteId = selection.ConfigurationId;
+					_viewItemManager.SomeId = selection.ConfigurationId;
+				return;
 			}
-			return null;
-		}
 
-        #endregion
+			_pendingTrackSelection = null;
+			_pendingTrackSelectionSiteId = null;
+			_selectedTrackId = selection.Track.TrackId;
+			_lastLocation = selection.Track;
+			// Map stays centered on site - no panning to tracks
+			UpdateLocationDetails(selection.Track);
+		});
+	}
+	return null;
+}
+
+
+    #endregion
 
         #region Remote server interaction
 
@@ -383,22 +457,22 @@ namespace CoreCommandMIP.Client
 		var classification = string.IsNullOrWhiteSpace(location.ClassificationLabel) ? "Unknown" : location.ClassificationLabel;
 		_statusTextBlock.Text = location.StatusMessage ?? string.Format(CultureInfo.InvariantCulture, "Track {0} - {1}", trackIdLabel, classification);
 
-		_ = UpdateMapAsync();
-	}
+	_ = UpdateMapAsync();
+}
 
-	private void ClearTrackVisuals(string statusMessage = "Waiting for remote targets.", bool broadcast = true)
-	{
-		_latestTracks = Array.Empty<SmartMapLocation>();
-		_selectedTrackId = null;
-		_lastLocation = null;
-		_shouldApplyZoomOnNextUpdate = true;
-		_siteRegions.Clear();
+private void ClearTrackVisuals(string statusMessage = "Waiting for remote targets.", bool broadcast = true)
+{
+	_latestTracks = Array.Empty<SmartMapLocation>();
+	_selectedTrackId = null;
+	_lastLocation = null;
+	// Map stays centered on site
+	_siteRegions.Clear();
 _alarmManager?.ClearAll();		
-		if (_mapView?.CoreWebView2 != null)
+	if (_mapView?.CoreWebView2 != null)
+	{
+		try
 		{
-			try
-			{
-				_mapView.ExecuteScriptAsync("window.clearRegions && window.clearRegions(); window.clearAllTracks && window.clearAllTracks();");
+			_mapView.ExecuteScriptAsync("window.clearRegions && window.clearRegions(); window.clearAllTracks && window.clearAllTracks();");
 			}
 			catch
 			{
@@ -565,10 +639,18 @@ _alarmManager?.ClearAll();
 			UpdateLocationDetails(null);
 			_statusTextBlock.Text = tracks?.FirstOrDefault()?.StatusMessage ?? "No active tracks.";
 			BroadcastTrackList(_latestTracks);
+			
+			// Update DataGrid
+			_trackListDataGrid.ItemsSource = null;
+			_trackCountTextBlock.Text = "0 tracks";
 			return;
 		}
 
 		_latestTracks = meaningfulTracks;
+		
+		// Update DataGrid with tracks
+		_trackListDataGrid.ItemsSource = meaningfulTracks;
+		_trackCountTextBlock.Text = $"{meaningfulTracks.Count} track{(meaningfulTracks.Count != 1 ? "s" : "")}";
 		
 		// Process alarms for all tracks
 		_alarmManager?.ProcessTracks(meaningfulTracks);
@@ -577,6 +659,13 @@ _alarmManager?.ClearAll();
 		if (_selectedTrackId.HasValue)
 		{
 			nextTrack = _latestTracks.FirstOrDefault(t => t.TrackId == _selectedTrackId.Value);
+			
+			// Also select in DataGrid
+			if (nextTrack != null)
+			{
+				_trackListDataGrid.SelectedItem = nextTrack;
+				_trackListDataGrid.ScrollIntoView(nextTrack);
+			}
 		}
 		if (nextTrack == null)
 		{
@@ -608,22 +697,22 @@ _alarmManager?.ClearAll();
 			}
 
 			if (_pendingTrackSelectionSiteId.Value != _viewItemManager.SomeId)
-			{
-				return;
-			}
-
-			_selectedTrackId = _pendingTrackSelection.TrackId == 0 ? (long?)null : _pendingTrackSelection.TrackId;
-			_lastLocation = _pendingTrackSelection;
-			_shouldApplyZoomOnNextUpdate = true;
-			UpdateLocationDetails(_pendingTrackSelection);
-			PersistMetadata(_pendingTrackSelection);
-			_pendingTrackSelection = null;
-			_pendingTrackSelectionSiteId = null;
+		{
+			return;
 		}
 
-		private void PopulateSiteSelector()
-		{
-			if (_siteComboBox == null)
+		_selectedTrackId = _pendingTrackSelection.TrackId == 0 ? (long?)null : _pendingTrackSelection.TrackId;
+		_lastLocation = _pendingTrackSelection;
+		// Map stays centered on site
+		UpdateLocationDetails(_pendingTrackSelection);
+		PersistMetadata(_pendingTrackSelection);
+		_pendingTrackSelection = null;
+		_pendingTrackSelectionSiteId = null;
+	}
+
+	private void PopulateSiteSelector()
+	{
+		if (_siteComboBox == null)
 			{
 				return;
 			}
@@ -671,8 +760,10 @@ _alarmManager?.ClearAll();
 		{
 			try
 			{
-				_webViewUserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoreCommandMIP", "WebView2");
+				// Use centralized cache folder path
+				_webViewUserDataFolder = RemoteServerSettings.GetWebView2CacheFolder();
 				Directory.CreateDirectory(_webViewUserDataFolder);
+				System.Diagnostics.Debug.WriteLine($"WebView2 cache folder: {_webViewUserDataFolder}");
 			}
 			catch (Exception ex)
 			{
@@ -789,12 +880,24 @@ _alarmManager?.ClearAll();
 			html = MapTemplate.GetMapHtml();
 		}
 
+		// Get 3D settings (defaults if not configured)
+		var enable3D = settings?.Enable3DMap ?? false;
+		var enable3DBuildings = settings?.Enable3DBuildings ?? true;
+		var enable3DTerrain = settings?.Enable3DTerrain ?? true;
+		var pitch = settings?.DefaultPitch ?? 45d;
+		var bearing = settings?.DefaultBearing ?? 0d;
+
 		return html
 			.Replace("__LAT__", latitude)
 			.Replace("__LON__", longitude)
 			.Replace("__ZOOM__", zoom)
 			.Replace("__TAIL__", tail)
-			.Replace("__SERVER_URL__", serverUrl);
+			.Replace("__SERVER_URL__", serverUrl)
+			.Replace("__3D_ENABLED__", enable3D.ToString())
+			.Replace("__3D_BUILDINGS__", enable3DBuildings.ToString())
+			.Replace("__3D_TERRAIN__", enable3DTerrain.ToString())
+			.Replace("__PITCH__", pitch.ToString(CultureInfo.InvariantCulture))
+			.Replace("__BEARING__", bearing.ToString(CultureInfo.InvariantCulture));
 	}
 
 	private async Task UpdateMapAsync()
@@ -809,22 +912,17 @@ _alarmManager?.ClearAll();
 
 			if (_latestTracks == null || _latestTracks.Count == 0)
 			{
-				await _mapView.ExecuteScriptAsync("window.clearAllTracks && window.clearAllTracks();").ConfigureAwait(true);
-				return;
-			}
-
-			if (_shouldApplyZoomOnNextUpdate)
-			{
-				await _mapView.ExecuteScriptAsync("window.setApplyZoom && window.setApplyZoom(true);").ConfigureAwait(true);
-				_shouldApplyZoomOnNextUpdate = false;
-			}
-
-			var script = BuildTracksScript(_latestTracks);
-			await _mapView.ExecuteScriptAsync(script).ConfigureAwait(true);
-
-			await CaptureUserZoomAsync().ConfigureAwait(true);
+			await _mapView.ExecuteScriptAsync("window.clearAllTracks && window.clearAllTracks();").ConfigureAwait(true);
+			return;
 		}
-		catch (Exception ex)
+
+		// Map stays centered on site - no panning to tracks
+		var script = BuildTracksScript(_latestTracks);
+		await _mapView.ExecuteScriptAsync(script).ConfigureAwait(true);
+
+		await CaptureUserZoomAsync().ConfigureAwait(true);
+	}
+	catch (Exception ex)
 		{
 			Dispatcher.Invoke(() => _statusTextBlock.Text = $"Unable to update map: {ex.Message}");
 		}

@@ -21,7 +21,16 @@ namespace CoreCommandMIP
         private const string MapProviderKey = "MapProvider";
         private const string MapboxAccessTokenKey = "MapboxAccessToken";
         private const string EnableMapCachingKey = "EnableMapCaching";
+        private const string Enable3DMapKey = "Enable3DMap";
+        private const string Enable3DBuildingsKey = "Enable3DBuildings";
+        private const string Enable3DTerrainKey = "Enable3DTerrain";
+        private const string DefaultPitchKey = "DefaultPitch";
+        private const string DefaultBearingKey = "DefaultBearing";
         private const string SelectedRegionIdsKey = "SelectedRegionIds";
+        private const string AssociatedCameraIdsKey = "AssociatedCameraIds";
+        private const string PluginInstanceIdKey = "PluginInstanceId";
+        private const string LastHealthCheckKey = "LastHealthCheck";
+        private const string HealthStatusKey = "HealthStatus";
 
         internal string Host { get; set; } = string.Empty;
         internal int Port { get; set; } = 443;
@@ -38,7 +47,16 @@ namespace CoreCommandMIP
         internal MapProvider MapProvider { get; set; } = MapProvider.Leaflet;
         internal string MapboxAccessToken { get; set; } = string.Empty;
         internal bool EnableMapCaching { get; set; } = true;
+        internal bool Enable3DMap { get; set; } = false;
+        internal bool Enable3DBuildings { get; set; } = true;
+        internal bool Enable3DTerrain { get; set; } = true;
+        internal double DefaultPitch { get; set; } = 45d; // Degrees from vertical (0-60)
+        internal double DefaultBearing { get; set; } = 0d; // Rotation in degrees
         internal string SelectedRegionIds { get; set; } = string.Empty; // Comma-separated list of region IDs
+        internal string AssociatedCameraIds { get; set; } = string.Empty; // Comma-separated camera GUIDs
+        internal Guid PluginInstanceId { get; set; } = Guid.NewGuid(); // Unique instance identifier
+        internal DateTime? LastHealthCheck { get; set; } = null;
+        internal HealthStatus HealthStatus { get; set; } = HealthStatus.Unknown;
 
 
         internal string Summary
@@ -122,9 +140,45 @@ namespace CoreCommandMIP
             {
                 settings.EnableMapCaching = enableCaching;
             }
+            if (item.Properties.TryGetValue(Enable3DMapKey, out var enable3DString) && bool.TryParse(enable3DString, out var enable3D))
+            {
+                settings.Enable3DMap = enable3D;
+            }
+            if (item.Properties.TryGetValue(Enable3DBuildingsKey, out var buildings3DString) && bool.TryParse(buildings3DString, out var enable3DBuildings))
+            {
+                settings.Enable3DBuildings = enable3DBuildings;
+            }
+            if (item.Properties.TryGetValue(Enable3DTerrainKey, out var terrain3DString) && bool.TryParse(terrain3DString, out var enable3DTerrain))
+            {
+                settings.Enable3DTerrain = enable3DTerrain;
+            }
+            if (item.Properties.TryGetValue(DefaultPitchKey, out var pitchString) && double.TryParse(pitchString, NumberStyles.Float, CultureInfo.InvariantCulture, out var pitch))
+            {
+                settings.DefaultPitch = pitch;
+            }
+            if (item.Properties.TryGetValue(DefaultBearingKey, out var bearingString) && double.TryParse(bearingString, NumberStyles.Float, CultureInfo.InvariantCulture, out var bearing))
+            {
+                settings.DefaultBearing = bearing;
+            }
             if (item.Properties.TryGetValue(SelectedRegionIdsKey, out var regionIds))
             {
                 settings.SelectedRegionIds = regionIds ?? string.Empty;
+            }
+            if (item.Properties.TryGetValue(AssociatedCameraIdsKey, out var cameraIds))
+            {
+                settings.AssociatedCameraIds = cameraIds ?? string.Empty;
+            }
+            if (item.Properties.TryGetValue(PluginInstanceIdKey, out var instanceIdString) && Guid.TryParse(instanceIdString, out var instanceId))
+            {
+                settings.PluginInstanceId = instanceId;
+            }
+            if (item.Properties.TryGetValue(LastHealthCheckKey, out var healthCheckString) && DateTime.TryParse(healthCheckString, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var healthCheck))
+            {
+                settings.LastHealthCheck = healthCheck;
+            }
+            if (item.Properties.TryGetValue(HealthStatusKey, out var healthStatusString) && Enum.TryParse<HealthStatus>(healthStatusString, out var healthStatus))
+            {
+                settings.HealthStatus = healthStatus;
             }
 
             return settings;
@@ -152,7 +206,16 @@ namespace CoreCommandMIP
             item.Properties[MapProviderKey] = MapProvider.ToString();
             item.Properties[MapboxAccessTokenKey] = MapboxAccessToken ?? string.Empty;
             item.Properties[EnableMapCachingKey] = EnableMapCaching.ToString();
+            item.Properties[Enable3DMapKey] = Enable3DMap.ToString();
+            item.Properties[Enable3DBuildingsKey] = Enable3DBuildings.ToString();
+            item.Properties[Enable3DTerrainKey] = Enable3DTerrain.ToString();
+            item.Properties[DefaultPitchKey] = DefaultPitch.ToString(CultureInfo.InvariantCulture);
+            item.Properties[DefaultBearingKey] = DefaultBearing.ToString(CultureInfo.InvariantCulture);
             item.Properties[SelectedRegionIdsKey] = SelectedRegionIds ?? string.Empty;
+            item.Properties[AssociatedCameraIdsKey] = AssociatedCameraIds ?? string.Empty;
+            item.Properties[PluginInstanceIdKey] = PluginInstanceId.ToString();
+            item.Properties[LastHealthCheckKey] = LastHealthCheck?.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty;
+            item.Properties[HealthStatusKey] = HealthStatus.ToString();
         }
 
 	internal void ApplySiteConfiguration(double latitude, double longitude, double radiusMeters, string siteName = null, double keepAliveSeconds = 1, double tailLength = 200)
@@ -247,6 +310,49 @@ namespace CoreCommandMIP
         {
             return !string.IsNullOrWhiteSpace(Host);
         }
+
+        /// <summary>
+        /// Clears the WebView2 cache for this plugin instance
+        /// </summary>
+        internal static void ClearMapCache()
+        {
+            try
+            {
+                var cacheFolder = GetWebView2CacheFolder();
+                if (System.IO.Directory.Exists(cacheFolder))
+                {
+                    System.Diagnostics.Debug.WriteLine($"Clearing map cache: {cacheFolder}");
+                    System.IO.Directory.Delete(cacheFolder, recursive: true);
+                    System.Diagnostics.Debug.WriteLine("Map cache cleared successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error clearing map cache: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Gets the WebView2 cache folder path
+        /// </summary>
+        internal static string GetWebView2CacheFolder()
+        {
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return System.IO.Path.Combine(appDataPath, "CoreCommandMIP", "WebView2Cache");
+        }
+    }
+
+    /// <summary>
+    /// Health status of the C2 connection
+    /// </summary>
+    internal enum HealthStatus
+    {
+        Unknown = 0,
+        Healthy = 1,
+        Degraded = 2,
+        Unhealthy = 3,
+        Disconnected = 4
     }
 
     /// <summary>
