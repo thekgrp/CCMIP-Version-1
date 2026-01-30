@@ -40,13 +40,14 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.1901.177" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
-    <Reference Include="System.Drawing" />
+    <Reference Include="System.Drawing" />`n    <Reference Include="System.Net.Http" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xaml" />
     <Reference Include="System.Xml.Linq">
@@ -61,6 +62,8 @@
     <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="*" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Admin\C2AlarmWiringRest.cs" />
+    <Compile Include="Admin\C2AlarmWiringVerified.cs" />
     <Compile Include="Admin\CoreCommandMIPAddUserControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -94,7 +97,13 @@
     <Compile Include="Admin\CoreCommandMIPUserControl.Designer.cs">
       <DependentUpon>CoreCommandMIPUserControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="Admin\CoreCommandMIPUserControlTabbed.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Admin\DiagnosticLogger.cs" />
+    <Compile Include="Admin\MilestoneRestClient.cs" />
     <Compile Include="Background\CoreCommandMIPBackgroundPlugin.cs" />
+    <Compile Include="Background\EventTriggerService.cs" />
     <Compile Include="Background\TrackAlarmEventHandler.cs" />
     <Compile Include="Client\CoreCommandMIPPropertiesWpfUserControl.xaml.cs">
       <DependentUpon>CoreCommandMIPPropertiesWpfUserControl.xaml</DependentUpon>
@@ -135,6 +144,7 @@
     <Compile Include="Client\TrackAlarmManager.cs" />
     <Compile Include="Client\TrackFetchResult.cs" />
     <Compile Include="Client\TrackMessaging.cs" />
+    <Compile Include="EventDefinitionHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -190,6 +200,7 @@
     <Content Include="assets\vehicle.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="GITHUB_INIT_SUCCESS.txt" />
     <Content Include="plugin.def">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
@@ -210,6 +221,7 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Client\CoreCommandMIPTrackListViewItemWpfUserControl.xaml">
+      <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Client\CoreCommandMIPViewItemWpfUserControl.xaml">
@@ -221,17 +233,78 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
+    <None Include="add-event-server-logging.ps1" />
+    <None Include="ALARM_CREATION_DIAGNOSTIC_GUIDE.md" />
+    <None Include="ALARM_IMPLEMENTATION_FINAL_STATUS.md" />
+    <None Include="ALARM_IMPLEMENTATION_GUIDE.md" />
+    <None Include="ALARM_IMPLEMENTATION_REALITY_CHECK.md" />
+    <None Include="ALARM_MESSAGES_NOT_REACHING_EVENT_SERVER.md" />
+    <None Include="ALARM_SYSTEM_REDESIGN.md" />
+    <None Include="ALL_THREE_FEATURES_COMPLETE.md" />
     <None Include="ANALYTICS_EVENTS_GUIDE.md" />
     <None Include="ARROWS_AND_REGIONS_STATUS.md" />
+    <None Include="CONFIGURATION_API_CACHE_FIX.md" />
+    <None Include="create-maptemplate.ps1" />
+    <None Include="Deploy-MapCache.ps1" />
+    <None Include="DIAGNOSTIC_FILE_LOGGING.md" />
     <None Include="Directory.Build.props" />
+    <None Include="EVENT_CREATION_COUNTER_FIX.md" />
+    <None Include="EVENT_LOADING_MAP_PREVIEW_FIXES.md" />
+    <None Include="EVENT_NAMING_NO_SPACES_FIX.md" />
+    <None Include="EVENT_SERVER_COMPREHENSIVE_LOGGING.md" />
+    <None Include="EVENT_SERVER_PLUGIN_DEPLOYMENT.md" />
+    <None Include="fix-event-names-no-spaces.ps1" />
+    <None Include="fix-guid-selection.ps1" />
+    <None Include="fix-mapbox-template.ps1" />
+    <None Include="fix-maptemplate-complete.ps1" />
+    <None Include="fix-maptemplate-final.ps1" />
+    <None Include="fix-maptemplate-orphaned.ps1" />
+    <None Include="fix-track-icons.ps1" />
+    <None Include="FULL_3D_MAP_IMPLEMENTATION.md" />
+    <None Include="GITHUB_PROJECT_READY.md" />
+    <None Include="GITHUB_SETUP_GUIDE.md" />
     <None Include="GUID_PARSING_STATUS.md" />
+    <None Include="GUID_REGION_SELECTION_FINAL_FIX.md" />
+    <None Include="init-github.ps1" />
+    <None Include="INTEGRATED_TRACKLIST_COMPLETE.md" />
     <None Include="MAPBOX_INTEGRATION_GUIDE.md" />
+    <None Include="MAP_CACHE_CLEARING_FEATURE.md" />
+    <None Include="OFFLINE_MAP_DEPLOYMENT_GUIDE.md" />
+    <None Include="PHASE1_COMPLETE.md" />
+    <None Include="PHASE2_ADMIN_UI_REDESIGN_PLAN.md" />
+    <None Include="PHASE2_COMPLETE_SUMMARY.md" />
+    <None Include="PHASE2_IMPLEMENTATION_STATUS.md" />
+    <None Include="PHASE2_TAB2_COMPLETE.md" />
     <None Include="POLLING_INTERVAL_CONFIG.md" />
+    <None Include="README.md" />
+    <None Include="READY_TO_PUSH_TO_GITHUB.md" />
     <None Include="REGIONS_DEBUGGING_GUIDE.md" />
+    <None Include="REGION_CHECKEDLISTBOX_FIX.md" />
+    <None Include="REGION_DATAGRID_UPDATE_GUIDE.md" />
+    <None Include="REGION_DISPLAY_TROUBLESHOOTING.md" />
+    <None Include="REGION_IMPROVEMENTS_SUMMARY.md" />
+    <None Include="REGION_NOT_SHOWING_DEBUG.md" />
     <None Include="REGION_SELECTION_FEATURE.md" />
+    <None Include="remove-alarm-selection-code.ps1" />
+    <None Include="restore-maptemplate.ps1" />
     <None Include="SERVER_SIDE_ALARMS_COMPLETE.md" />
+    <None Include="setup-github.bat" />
+    <None Include="SITE_SPECIFIC_EVENTS_COMPLETE.md" />
     <None Include="SOURCES_FIELD_IMPLEMENTATION.md" />
+    <None Include="STATUS_CHECK_DEBUG_FIX.md" />
+    <None Include="TAB3_SPACING_FIX_COMPLETE.md" />
+    <None Include="TABBED_UI_FIXES_COMPLETE.md" />
+    <None Include="THREE_CRITICAL_FIXES_COMPLETE.md" />
+    <None Include="TRACK_ALARM_EVENT_MANAGER_FIX.md" />
+    <None Include="TRACK_ICONS_DEBUG_CHECKLIST.md" />
+    <None Include="TRACK_ICONS_DEPLOYMENT_FIX.md" />
+    <None Include="TRACK_ICONS_NOT_SHOWING_FIX.md" />
+    <None Include="UDE_ALARM_CREATION_NOTES.md" />
+    <None Include="update-event-trigger.ps1" />
+    <None Include="update-integrated-tracklist.ps1" />
     <None Include="URGENT_REGIONS_ICONS_FIX.md" />
+    <None Include="ZERO_EVENTS_SERVER_MISMATCH_DIAGNOSIS.md" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Packaged\" />

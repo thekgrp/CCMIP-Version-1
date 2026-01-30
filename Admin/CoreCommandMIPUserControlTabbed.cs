@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
+using System.Collections;
+using System.Reflection;
 using VideoOS.Platform;
 using VideoOS.Platform.Admin;
 using VideoOS.Platform.ConfigurationItems;
@@ -96,9 +98,9 @@ namespace CoreCommandMIP.Admin
             comboBoxMapProvider.SelectedIndex = 0;
             textBoxMapboxToken.Text = string.Empty;
             checkBoxEnableMapCaching.Checked = true;
-            textBoxLatitude.Text = "0";
-            textBoxLongitude.Text = "0";
-            textBoxZoom.Text = "8";
+            textBoxLatitude.Text = "45.5098";  // Oregon Zoo
+            textBoxLongitude.Text = "-122.7161";  // Oregon Zoo
+            textBoxZoom.Text = "14";  // Good zoom for viewing a specific location
             numericUpDownPollingInterval.Value = 1;
             checkedListBoxRegions.Items.Clear();
             
@@ -323,16 +325,82 @@ namespace CoreCommandMIP.Admin
             int y = 20;
             int labelX = 20;
             int controlX = 170;
-            int controlWidth = 320;
+            int controlWidth = 280; // Reduced to fit two columns
             int rowHeight = 35;
 
-            // Map Settings Group
+            // Map Settings Group (Left Column)
             var grpMap = new GroupBox();
             grpMap.Text = "Map Settings";
             grpMap.Location = new Point(10, y);
-            grpMap.Size = new Size(600, 280);
+            grpMap.Size = new Size(500, 330); // Narrower for two-column layout
             tab.Controls.Add(grpMap);
 
+            // Map Preview Group (Right Column)
+            var grpPreview = new GroupBox();
+            grpPreview.Text = "Map Preview";
+            grpPreview.Location = new Point(520, y); // Next to map settings
+            grpPreview.Size = new Size(350, 330); // Match height
+            tab.Controls.Add(grpPreview);
+
+            var lblPreviewInfo = new Label { 
+                Text = "Preview:", 
+                Location = new Point(15, 25), 
+                Size = new Size(320, 20) 
+            };
+            grpPreview.Controls.Add(lblPreviewInfo);
+
+            webViewSitePreview = new Microsoft.Web.WebView2.WinForms.WebView2();
+            webViewSitePreview.Location = new Point(15, 50);
+            webViewSitePreview.Size = new Size(320, 265);
+            
+            // Initialize WebView2 when control is ready
+            webViewSitePreview.HandleCreated += async (s, ev) =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine("WebView2 HandleCreated event fired");
+                    
+                    // Set user data folder for WebView2
+                    var userDataFolder = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "CoreCommandMIP", "AdminWebView2");
+                    
+                    System.Diagnostics.Debug.WriteLine($"WebView2 user data folder: {userDataFolder}");
+                    
+                    // Ensure directory exists
+                    System.IO.Directory.CreateDirectory(userDataFolder);
+                    
+                    // Initialize with user data folder
+                    var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
+                        userDataFolder: userDataFolder);
+                    
+                    await webViewSitePreview.EnsureCoreWebView2Async(env);
+                    System.Diagnostics.Debug.WriteLine("WebView2 initialized successfully");
+                    
+                    // Load map preview if item is loaded
+                    if (_item != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Item exists, loading map preview");
+                        var settings = RemoteServerSettings.FromItem(_item);
+                        UpdateSitePreview(settings);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Item is null, showing placeholder");
+                        ShowMapPlaceholder();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"WebView2 init error: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                    DiagnosticLogger.WriteException("WebView2 initialization", ex);
+                }
+            };
+            
+            grpPreview.Controls.Add(webViewSitePreview);
+
+            // Map Settings Content (in left column)
             int gy = 25;
 
             // Map Provider
@@ -368,37 +436,35 @@ namespace CoreCommandMIP.Admin
             grpMap.Controls.Add(checkBoxEnable3DMap);
             gy += rowHeight;
 
-            // Enable 3D Buildings (indented)
-            checkBoxEnable3DBuildings = new CheckBox { Text = "Show 3D Buildings", Location = new Point(controlX + 20, gy), Size = new Size(200, 20), Checked = true };
+            // 3D Features (side by side to save space)
+            checkBoxEnable3DBuildings = new CheckBox { Text = "3D Buildings", Location = new Point(controlX + 20, gy), Size = new Size(120, 20), Checked = true };
             checkBoxEnable3DBuildings.CheckedChanged += OnUserChange;
             grpMap.Controls.Add(checkBoxEnable3DBuildings);
-            gy += rowHeight;
-
-            // Enable 3D Terrain (indented)
-            checkBoxEnable3DTerrain = new CheckBox { Text = "Show 3D Terrain", Location = new Point(controlX + 20, gy), Size = new Size(200, 20), Checked = true };
+            
+            checkBoxEnable3DTerrain = new CheckBox { Text = "3D Terrain", Location = new Point(controlX + 150, gy), Size = new Size(120, 20), Checked = true };
             checkBoxEnable3DTerrain.CheckedChanged += OnUserChange;
             grpMap.Controls.Add(checkBoxEnable3DTerrain);
             gy += rowHeight;
 
-            // Default Latitude
-            var lblLat = new Label { Text = "Default Latitude:", Location = new Point(labelX, gy), Size = new Size(140, 20) };
-            textBoxLatitude = new TextBox { Location = new Point(controlX, gy), Size = new Size(120, 20), Text = "0" };
+            // Latitude (Oregon Zoo default)
+            var lblLat = new Label { Text = "Latitude:", Location = new Point(labelX, gy), Size = new Size(140, 20) };
+            textBoxLatitude = new TextBox { Location = new Point(controlX, gy), Size = new Size(120, 20), Text = "45.5098" };
             textBoxLatitude.TextChanged += OnMapSettingChanged;
             grpMap.Controls.Add(lblLat);
             grpMap.Controls.Add(textBoxLatitude);
             gy += rowHeight;
 
-            // Default Longitude
-            var lblLon = new Label { Text = "Default Longitude:", Location = new Point(labelX, gy), Size = new Size(140, 20) };
-            textBoxLongitude = new TextBox { Location = new Point(controlX, gy), Size = new Size(120, 20), Text = "0" };
+            // Longitude (Oregon Zoo default)
+            var lblLon = new Label { Text = "Longitude:", Location = new Point(labelX, gy), Size = new Size(140, 20) };
+            textBoxLongitude = new TextBox { Location = new Point(controlX, gy), Size = new Size(120, 20), Text = "-122.7161" };
             textBoxLongitude.TextChanged += OnMapSettingChanged;
             grpMap.Controls.Add(lblLon);
             grpMap.Controls.Add(textBoxLongitude);
             gy += rowHeight;
 
-            // Default Zoom
-            var lblZoom = new Label { Text = "Default Zoom:", Location = new Point(labelX, gy), Size = new Size(140, 20) };
-            textBoxZoom = new TextBox { Location = new Point(controlX, gy), Size = new Size(120, 20), Text = "8" };
+            // Zoom (Oregon Zoo default)
+            var lblZoom = new Label { Text = "Zoom:", Location = new Point(labelX, gy), Size = new Size(140, 20) };
+            textBoxZoom = new TextBox { Location = new Point(controlX, gy), Size = new Size(120, 20), Text = "14" };
             textBoxZoom.TextChanged += OnMapSettingChanged;
             grpMap.Controls.Add(lblZoom);
             grpMap.Controls.Add(textBoxZoom);
@@ -438,49 +504,6 @@ namespace CoreCommandMIP.Admin
             buttonOfflineMapData.Click += ButtonOfflineMapData_Click;
             buttonOfflineMapData.ForeColor = Color.DarkBlue;
             grpRegions.Controls.Add(buttonOfflineMapData);
-
-            y += 260;
-
-            // Map Preview Group (NEW - was missing!)
-            var grpPreview = new GroupBox();
-            grpPreview.Text = "Map Preview";
-            grpPreview.Location = new Point(10, y);
-            grpPreview.Size = new Size(600, 280);
-            tab.Controls.Add(grpPreview);
-
-            var lblPreviewInfo = new Label { 
-                Text = "Preview of configured map location:", 
-                Location = new Point(15, 25), 
-                Size = new Size(400, 20) 
-            };
-            grpPreview.Controls.Add(lblPreviewInfo);
-
-            webViewSitePreview = new Microsoft.Web.WebView2.WinForms.WebView2();
-            webViewSitePreview.Location = new Point(15, 50);
-            webViewSitePreview.Size = new Size(570, 220);
-            
-            // Initialize WebView2 when control is ready
-            webViewSitePreview.HandleCreated += async (s, ev) =>
-            {
-                try
-                {
-                    await webViewSitePreview.EnsureCoreWebView2Async(null);
-                    System.Diagnostics.Debug.WriteLine("WebView2 initialized on HandleCreated");
-                    
-                    // Load initial preview if settings exist
-                    if (_item != null)
-                    {
-                        var settings = RemoteServerSettings.FromItem(_item);
-                        UpdateSitePreview(settings);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error initializing WebView2: {ex.Message}");
-                }
-            };
-            
-            grpPreview.Controls.Add(webViewSitePreview);
         }
 
         private void CreateAlarmWiringTab(TabPage tab)
@@ -490,49 +513,51 @@ namespace CoreCommandMIP.Admin
 
             // Event Types Group
             var grpEvents = new GroupBox();
-            grpEvents.Text = "Event Types";
+            grpEvents.Text = "C2 Event Types (Reference Only)";
             grpEvents.Location = new Point(10, y);
-            grpEvents.Size = new Size(360, 250);  // Increased width and height
+            grpEvents.Size = new Size(360, 250);
             tab.Controls.Add(grpEvents);
 
             var lblEvents = new Label { 
-                Text = "Available C2 Event Types:", 
-                Location = new Point(15, 30), 
-                Size = new Size(300, 20),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+                Text = "C2 can trigger these event types.\nAlarm creation below uses Alert and Alarm only.", 
+                Location = new Point(15, 25), 
+                Size = new Size(330, 35),
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Italic),
+                ForeColor = Color.DarkSlateGray
             };
             grpEvents.Controls.Add(lblEvents);
 
             listBoxEventTypes = new ListBox();
-            listBoxEventTypes.Location = new Point(15, 55);
-            listBoxEventTypes.Size = new Size(330, 180);  // Increased size
+            listBoxEventTypes.Location = new Point(15, 65);
+            listBoxEventTypes.Size = new Size(330, 170);
+            listBoxEventTypes.SelectionMode = SelectionMode.None; // Read-only
             listBoxEventTypes.Items.AddRange(new object[] {
-                "C2.Alert (Medium severity)",
-                "C2.Alarm (High severity)",
-                "C2.AlarmCleared (Info)",
-                "C2.TrackEnterRegion (Info)",
-                "C2.TrackLost (Info)"
+                "? C2.Alert (Medium) - Will create",
+                "? C2.Alarm (High) - Will create",
+                "  C2.AlarmCleared (Info)",
+                "  C2.TrackEnterRegion (Info)",
+                "  C2.TrackLost (Info)"
             });
             grpEvents.Controls.Add(listBoxEventTypes);
 
-            // Alarm Definitions Group
+            // Alarm Definitions Group - EXPANDED
             var grpAlarms = new GroupBox();
             grpAlarms.Text = "Recommended Alarm Definitions";
-            grpAlarms.Location = new Point(380, y);  // More space from left group
-            grpAlarms.Size = new Size(400, 250);  // Increased height
+            grpAlarms.Location = new Point(380, y);
+            grpAlarms.Size = new Size(490, 300); // Increased size to fit all buttons
             tab.Controls.Add(grpAlarms);
 
             var lblAlarms = new Label {
-                Text = "These alarms will be created in Milestone:",
+                Text = "These events and alarms will be created:",
                 Location = new Point(15, 30),
-                Size = new Size(370, 20),
+                Size = new Size(460, 20),
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular)
             };
             grpAlarms.Controls.Add(lblAlarms);
 
             dataGridViewAlarms = new DataGridView();
             dataGridViewAlarms.Location = new Point(15, 55);
-            dataGridViewAlarms.Size = new Size(370, 120);  // Adjusted size
+            dataGridViewAlarms.Size = new Size(460, 90); // Taller to show 4 rows
             dataGridViewAlarms.AllowUserToAddRows = false;
             dataGridViewAlarms.ReadOnly = true;
             dataGridViewAlarms.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
@@ -540,112 +565,112 @@ namespace CoreCommandMIP.Admin
             dataGridViewAlarms.ScrollBars = ScrollBars.Vertical;
             dataGridViewAlarms.AllowUserToResizeColumns = true;
             
-            dataGridViewAlarms.Columns.Add("Name", "Alarm Name");
-            dataGridViewAlarms.Columns.Add("Event", "Event");
-            dataGridViewAlarms.Columns.Add("Severity", "Severity");
+            dataGridViewAlarms.Columns.Add("Name", "Name");
+            dataGridViewAlarms.Columns.Add("Type", "Type");
+            dataGridViewAlarms.Columns.Add("Priority", "Priority");
             dataGridViewAlarms.Columns.Add("Status", "Status");
             
             // Set explicit column widths
-            dataGridViewAlarms.Columns[0].Width = 130;  // Name
-            dataGridViewAlarms.Columns[1].Width = 80;   // Event
-            dataGridViewAlarms.Columns[2].Width = 70;   // Severity
-            dataGridViewAlarms.Columns[3].Width = 90;   // Status
-
-            // Add recommended alarms (note: site-specific names will be created)
-            var siteName = string.IsNullOrWhiteSpace(textBoxName?.Text) ? "[Site Name]" : textBoxName.Text;
-            dataGridViewAlarms.Rows.Add($"C2 Alert - {siteName}", "C2.Alert", "Medium", "Not Created");
-            dataGridViewAlarms.Rows.Add($"C2 Alarm - {siteName}", "C2.Alarm", "High", "Not Created");
+            dataGridViewAlarms.Columns[0].Width = 200;  // Name
+            dataGridViewAlarms.Columns[1].Width = 120;  // Type
+            dataGridViewAlarms.Columns[2].Width = 60;   // Priority
+            dataGridViewAlarms.Columns[3].Width = 80;   // Status
             
             grpAlarms.Controls.Add(dataGridViewAlarms);
 
             // Status label
             labelWiringStatus = new Label {
-                Text = "No events or alarms created yet",
-                Location = new Point(15, 185),
-                Size = new Size(740, 40),
+                Text = "Enter a site name to begin",
+                Location = new Point(15, 155),
+                Size = new Size(460, 35), // Taller for text wrapping
                 ForeColor = Color.Gray,
                 Font = new Font("Segoe UI", 9F, FontStyle.Italic)
             };
             grpAlarms.Controls.Add(labelWiringStatus);
 
-            // Step 1: Create Events button
+            // Buttons in a clean row
             buttonCreateEvents = new Button { 
-                Text = "Step 1: Create Events", 
-                Location = new Point(15, 230), 
-                Size = new Size(180, 35),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+                Text = "Create Events + Alarms", 
+                Location = new Point(15, 200), 
+                Size = new Size(155, 32),
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold)
             };
             buttonCreateEvents.Click += ButtonCreateEvents_Click;
+            buttonCreateEvents.Enabled = false; // Disabled until site name entered
             grpAlarms.Controls.Add(buttonCreateEvents);
 
-            // Step 2: Create Alarms button (initially disabled)
-            buttonCreateAlarms = new Button { 
-                Text = "Step 2: Create Alarms", 
-                Location = new Point(205, 230), 
-                Size = new Size(180, 35),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                Enabled = false
-            };
-            buttonCreateAlarms.Click += ButtonCreateAlarms_Click;
-            grpAlarms.Controls.Add(buttonCreateAlarms);
+            // NOTE: Old "Step 2: Create Alarms" button removed - functionality combined into single button above
 
-            // Refresh button
             var buttonRefreshStatus = new Button {
                 Text = "Refresh Status",
-                Location = new Point(395, 230),
-                Size = new Size(120, 35)
+                Location = new Point(325, 200),
+                Size = new Size(145, 32),
+                Font = new Font("Segoe UI", 8.5F)
             };
             buttonRefreshStatus.Click += (s, ev) => UpdateWiringStatus();
             grpAlarms.Controls.Add(buttonRefreshStatus);
 
-            y += 330;  // Increased height for new buttons
-
-            // Existing Definitions Group (NEW)
-            var grpExisting = new GroupBox();
-            grpExisting.Text = "Existing Event & Alarm Definitions";
-            grpExisting.Location = new Point(10, y);
-            grpExisting.Size = new Size(770, 200);
-            tab.Controls.Add(grpExisting);
-
-            var lblExisting = new Label {
-                Text = "C2 events and alarms currently in Milestone:",
-                Location = new Point(15, 30),
-                Size = new Size(740, 20),
-                Font = new Font("Segoe UI", 9F, FontStyle.Regular)
+            // View Logs button - opens Milestone log viewer
+            var buttonShowLog = new Button {
+                Text = "View Logs",
+                Location = new Point(15, 242),
+                Size = new Size(120, 30),
+                Font = new Font("Segoe UI", 8.5F),
+                ForeColor = Color.DarkBlue
             };
-            grpExisting.Controls.Add(lblExisting);
-
-            var listBoxExisting = new ListBox();
-            listBoxExisting.Name = "listBoxExistingDefinitions";
-            listBoxExisting.Location = new Point(15, 55);
-            listBoxExisting.Size = new Size(620, 130);
-            grpExisting.Controls.Add(listBoxExisting);
-
-            var btnRefreshList = new Button {
-                Text = "Refresh",
-                Location = new Point(645, 55),
-                Size = new Size(110, 30)
+            buttonShowLog.Click += (s, ev) => {
+                try {
+                    // Open Milestone Management Client log viewer
+                    var logViewerPath = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                        "Milestone", "MIPSDK", "Bin", "LogViewer.exe");
+                    
+                    if (System.IO.File.Exists(logViewerPath))
+                    {
+                        System.Diagnostics.Process.Start(logViewerPath);
+                    }
+                    else
+                    {
+                        // Fallback: Open Milestone logs folder
+                        var logsFolder = System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                            "Milestone", "XProtect Management Server", "Logs");
+                        
+                        if (System.IO.Directory.Exists(logsFolder))
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", logsFolder);
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "Milestone logs are written to the XProtect Management Server log.\n\n" +
+                                "To view logs:\n" +
+                                "1. Open Milestone Management Client\n" +
+                                "2. Go to Tools > Options > Logging\n" +
+                                "3. Or check: C:\\ProgramData\\Milestone\\XProtect Management Server\\Logs",
+                                "View Logs",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                    }
+                } catch (Exception ex) {
+                    MessageBox.Show($"Error opening logs: {ex.Message}", "Error", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             };
-            btnRefreshList.Click += (s, ev) => LoadExistingEventDefinitions();
-            grpExisting.Controls.Add(btnRefreshList);
+            grpAlarms.Controls.Add(buttonShowLog);
 
-            var btnDeleteSelected = new Button {
-                Text = "Info",
-                Location = new Point(645, 95),
-                Size = new Size(110, 30)
+            // Help text below buttons
+            var lblHelp = new Label {
+                Text = "Logs are written to Milestone XProtect Management Server log.\nClick 'View Logs' to open log folder or use Management Client log viewer.",
+                Location = new Point(145, 242),
+                Size = new Size(320, 40),
+                ForeColor = Color.DarkSlateGray,
+                Font = new Font("Segoe UI", 7.5F, FontStyle.Italic)
             };
-            btnDeleteSelected.Click += ButtonShowInfo_Click;
-            grpExisting.Controls.Add(btnDeleteSelected);
+            grpAlarms.Controls.Add(lblHelp);
 
-            var btnOpenInMC = new Button {
-                Text = "Open in MC",
-                Location = new Point(645, 135),
-                Size = new Size(110, 30)
-            };
-            btnOpenInMC.Click += ButtonOpenInMC_Click;
-            grpExisting.Controls.Add(btnOpenInMC);
-
-            y += 210;
+            y += 310;
 
             // Camera Association Group
             var grpCameras = new GroupBox();
@@ -687,306 +712,138 @@ namespace CoreCommandMIP.Admin
             grpCameras.Controls.Add(labelCameraCount);
         }
 
-        private async void ButtonCreateAlarms_Click(object sender, EventArgs e)
-        {
-            var originalCursor = this.Cursor;
-            
-            try
-            {
-                this.Cursor = Cursors.WaitCursor;
-                buttonCreateAlarms.Enabled = false;
-                buttonCreateAlarms.Text = "Creating Alarms...";
-                Application.DoEvents();
-
-                var siteName = textBoxName.Text?.Trim();
-                if (string.IsNullOrWhiteSpace(siteName))
-                {
-                    MessageBox.Show("Please enter a site name first.", "Site Name Required", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                var result = MessageBox.Show(
-                    $"This will create Alarm Definitions for site: {siteName}\n\n" +
-                    $"Alarms to create:\n" +
-                    $"  � C2 Alert - {siteName} (Priority: Medium)\n" +
-                    $"  � C2 Alarm - {siteName} (Priority: High)\n\n" +
-                    $"Associated cameras: {checkedListBoxCameras.CheckedItems.Count}\n\n" +
-                    "Do you want to proceed?",
-                    "Create Alarm Definitions",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
-
-                this.Cursor = Cursors.WaitCursor;
-                Application.DoEvents();
-
-                int createdCount = 0;
-                int skippedCount = 0;
-                var errors = new System.Collections.Generic.List<string>();
-
-                // Get camera paths
-                var cameraPaths = new System.Collections.Generic.List<string>();
-                if (checkedListBoxCameras.CheckedItems.Count > 0)
-                {
-                    foreach (CameraItem cam in checkedListBoxCameras.CheckedItems)
-                    {
-                        try
-                        {
-                            var cameraItem = Configuration.Instance.GetItem(cam.Id, Kind.Camera);
-                            if (cameraItem != null)
-                            {
-                                var cameraConfig = new Camera(cameraItem.FQID);
-                                cameraPaths.Add(cameraConfig.Path);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Error getting path for {cam.Name}: {ex.Message}");
-                        }
-                    }
-                }
-
-                // Create C2 Alert Alarm
-                try
-                {
-                    var success = CreateAlarmDefinition(
-                        siteName,
-                        $"C2.Alert - {siteName}",
-                        $"C2 Alert - {siteName}",
-                        $"Medium severity alerts from C2 tracking system at {siteName}",
-                        "Medium",
-                        cameraPaths.ToArray(),
-                        out bool created);
-
-                    if (created) createdCount++;
-                    else if (success) skippedCount++;
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"C2 Alert: {ex.Message}");
-                }
-
-                // Create C2 Alarm Alarm
-                try
-                {
-                    var success = CreateAlarmDefinition(
-                        siteName,
-                        $"C2.Alarm - {siteName}",
-                        $"C2 Alarm - {siteName}",
-                        $"High severity alarms from C2 tracking system at {siteName}",
-                        "High",
-                        cameraPaths.ToArray(),
-                        out bool created);
-
-                    if (created) createdCount++;
-                    else if (success) skippedCount++;
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"C2 Alarm: {ex.Message}");
-                }
-
-                // Wait and refresh
-                await System.Threading.Tasks.Task.Delay(1000);
-                UpdateWiringStatus();
-
-                // Show results
-                var message = $"Alarm Creation Complete for Site: {siteName}\n\n" +
-                             $"Created: {createdCount} alarms\n" +
-                             $"Already existed: {skippedCount} alarms\n\n";
-
-                if (createdCount > 0)
-                {
-                    message += "? Alarms created successfully!\n\n" +
-                              "The alarms are now active and will trigger when C2 sends track alarms.";
-                }
-
-                if (errors.Count > 0)
-                {
-                    message += "\n\nErrors:\n" + string.Join("\n", errors);
-                    MessageBox.Show(message, "Alarm Creation Results", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-                else
-                {
-                    MessageBox.Show(message, "Alarms Created", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error creating alarms:\n\n{ex.Message}\n\nSee Debug Output for details", 
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                System.Diagnostics.Debug.WriteLine($"Create alarms exception: {ex}");
-            }
-            finally
-            {
-                this.Cursor = originalCursor;
-                buttonCreateAlarms.Enabled = true;
-                buttonCreateAlarms.Text = "Step 2: Create Alarms";
-            }
-        }
-
-        private bool CreateAlarmDefinition(
-            string siteName,
-            string udeName,
-            string alarmName,
-            string alarmDescription,
-            string priority,
-            string[] cameraPaths,
-            out bool created)
-        {
-            created = false;
-
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"=== Creating alarm: {alarmName} ===");
-
-                // Get UDE
-                var udeFolder = new UserDefinedEventFolder();
-                udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-
-                var ude = udeFolder.UserDefinedEvents
-                    .FirstOrDefault(e => string.Equals(e.Name, udeName, StringComparison.OrdinalIgnoreCase));
-
-                if (ude == null)
-                {
-                    throw new InvalidOperationException($"Event '{udeName}' not found. Please create events first (Step 1).");
-                }
-
-                if (string.IsNullOrEmpty(ude.Path))
-                {
-                    throw new InvalidOperationException($"Event '{udeName}' has no path.");
-                }
-
-                System.Diagnostics.Debug.WriteLine($"Found UDE: {udeName}, Path: {ude.Path}");
-
-                // Check if alarm already exists
-                var alarmFolder = new AlarmDefinitionFolder();
-                alarmFolder.FillChildren(new[] { nameof(AlarmDefinition) });
-
-                var existingAlarm = alarmFolder.AlarmDefinitions
-                    .FirstOrDefault(a => string.Equals(a.Name, alarmName, StringComparison.OrdinalIgnoreCase));
-
-                if (existingAlarm != null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Alarm already exists: {alarmName}");
-                    return true; // Success, but not created
-                }
-
-                // Create alarm
-                var relatedCameraList = (cameraPaths != null && cameraPaths.Length > 0)
-                    ? string.Join(",", cameraPaths)
-                    : string.Empty;
-
-                System.Diagnostics.Debug.WriteLine($"Creating alarm with {cameraPaths?.Length ?? 0} cameras");
-
-                var task = alarmFolder.AddAlarmDefinition(
-                    name: alarmName,
-                    description: alarmDescription,
-                    eventTypeGroup: "External Events",
-                    eventType: "External Event",
-                    sourceList: ude.Path,
-                    enableRule: "Always",
-                    timeProfile: string.Empty,
-                    enableEventList: string.Empty,
-                    disableEventList: string.Empty,
-                    managementTimeoutTime: string.Empty,
-                    managementTimeoutEventList: string.Empty,
-                    relatedCameraList: relatedCameraList,
-                    mapType: string.Empty,
-                    relatedMap: string.Empty,
-                    owner: string.Empty,
-                    priority: priority,
-                    category: "C2 Alarms",
-                    triggerEventlist: string.Empty);
-
-                WaitForTaskOrThrow(task, $"Failed creating alarm '{alarmName}'");
-                created = true;
-                System.Diagnostics.Debug.WriteLine($"? Created alarm: {alarmName}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error creating alarm: {ex.Message}");
-                throw;
-            }
-        }
+        // OLD METHOD REMOVED: ButtonCreateAlarms_Click()
+        // OLD METHOD REMOVED: CreateAlarmDefinition() with hardcoded GUID
+        // 
+        // Reason: Functionality replaced by C2AlarmWiringVerified.EnsureUdeAndAlarmDefinitionVerified()
+        // which properly probes existing alarms for correct EventTypeGroup/EventType values.
 
         private void UpdateWiringStatus()
         {
+            DiagnosticLogger.WriteSection("UPDATE WIRING STATUS");
+            
             try
             {
                 var siteName = textBoxName.Text?.Trim();
+                DiagnosticLogger.WriteLine($"Site name: '{siteName}'");
+                
                 if (string.IsNullOrWhiteSpace(siteName))
                 {
                     labelWiringStatus.Text = "Enter a site name to begin";
                     labelWiringStatus.ForeColor = Color.Gray;
                     buttonCreateEvents.Enabled = false;
-                    buttonCreateAlarms.Enabled = false;
+                    
+                    // Clear DataGrid
+                    dataGridViewAlarms.Rows.Clear();
+                    dataGridViewAlarms.Rows.Add("(Enter site name)", "", "", "N/A");
+                    DiagnosticLogger.WriteLine("No site name - returning");
                     return;
                 }
 
                 buttonCreateEvents.Enabled = true;
 
-                // Check events
-                var udeFolder = new UserDefinedEventFolder();
-                udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-
-                var alertEvent = udeFolder.UserDefinedEvents
-                    .FirstOrDefault(e => string.Equals(e.Name, $"C2.Alert - {siteName}", StringComparison.OrdinalIgnoreCase));
-                var alarmEvent = udeFolder.UserDefinedEvents
-                    .FirstOrDefault(e => string.Equals(e.Name, $"C2.Alarm - {siteName}", StringComparison.OrdinalIgnoreCase));
+                var alertEventName = $"C2_Alert_{siteName}";
+                var alarmEventName = $"C2_Alarm_{siteName}";
+                var alertAlarmName = $"C2_Alert_{siteName}";
+                var alarmAlarmName = $"C2_Alarm_{siteName}";
+                
+                DiagnosticLogger.WriteLine($"Checking for events/alarms via ManagementServer:");
+                DiagnosticLogger.WriteLine($"  Event: '{alertEventName}'");
+                DiagnosticLogger.WriteLine($"  Event: '{alarmEventName}'");
+                DiagnosticLogger.WriteLine($"  Alarm: '{alertAlarmName}'");
+                DiagnosticLogger.WriteLine($"  Alarm: '{alarmAlarmName}'");
+                
+                var serverId = VideoOS.Platform.EnvironmentManager.Instance.MasterSite.ServerId;
+                var ms = new VideoOS.Platform.ConfigurationItems.ManagementServer(serverId);
+                
+                // Use ManagementServer approach (WORKING!)
+                UserDefinedEvent alertEvent = null;
+                UserDefinedEvent alarmEvent = null;
+                AlarmDefinition alertAlarm = null;
+                AlarmDefinition alarmAlarm = null;
+                
+                try
+                {
+                    var events = ms.UserDefinedEventFolder.UserDefinedEvents.ToArray();
+                    DiagnosticLogger.WriteLine($"Total events found: {events.Length}");
+                    
+                    alertEvent = events.FirstOrDefault(e => string.Equals(e.Name, alertEventName, StringComparison.OrdinalIgnoreCase));
+                    alarmEvent = events.FirstOrDefault(e => string.Equals(e.Name, alarmEventName, StringComparison.OrdinalIgnoreCase));
+                    
+                    DiagnosticLogger.WriteLine($"Alert event found: {alertEvent != null}");
+                    DiagnosticLogger.WriteLine($"Alarm event found: {alarmEvent != null}");
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.WriteLine($"Error loading events: {ex.Message}");
+                }
+                
+                try
+                {
+                    var alarms = ms.AlarmDefinitionFolder.AlarmDefinitions.ToArray();
+                    DiagnosticLogger.WriteLine($"Total alarms found: {alarms.Length}");
+                    
+                    alertAlarm = alarms.FirstOrDefault(a => string.Equals(a.Name, alertAlarmName, StringComparison.OrdinalIgnoreCase));
+                    alarmAlarm = alarms.FirstOrDefault(a => string.Equals(a.Name, alarmAlarmName, StringComparison.OrdinalIgnoreCase));
+                    
+                    DiagnosticLogger.WriteLine($"Alert alarm found: {alertAlarm != null}");
+                    DiagnosticLogger.WriteLine($"Alarm alarm found: {alarmAlarm != null}");
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.WriteLine($"Error loading alarms: {ex.Message}");
+                }
 
                 bool eventsExist = alertEvent != null && alarmEvent != null;
-
-                // Check alarms
-                var alarmFolder = new AlarmDefinitionFolder();
-                alarmFolder.FillChildren(new[] { nameof(AlarmDefinition) });
-
-                var alertAlarm = alarmFolder.AlarmDefinitions
-                    .FirstOrDefault(a => string.Equals(a.Name, $"C2 Alert - {siteName}", StringComparison.OrdinalIgnoreCase));
-                var alarmAlarm = alarmFolder.AlarmDefinitions
-                    .FirstOrDefault(a => string.Equals(a.Name, $"C2 Alarm - {siteName}", StringComparison.OrdinalIgnoreCase));
-
                 bool alarmsExist = alertAlarm != null && alarmAlarm != null;
 
                 // Update status
+                DiagnosticLogger.WriteSection("FINAL STATUS");
+                DiagnosticLogger.WriteLine($"Events exist: {eventsExist}");
+                DiagnosticLogger.WriteLine($"Alarms exist: {alarmsExist}");
+                
                 if (eventsExist && alarmsExist)
                 {
                     labelWiringStatus.Text = $"? All events and alarms exist for site '{siteName}'";
                     labelWiringStatus.ForeColor = Color.DarkGreen;
-                    buttonCreateEvents.Enabled = true; // Can recreate if needed
-                    buttonCreateAlarms.Enabled = true; // Can recreate if needed
+                    buttonCreateEvents.Enabled = true;
+                    DiagnosticLogger.WriteLine("? ALL COMPLETE - button ENABLED");
                 }
                 else if (eventsExist)
                 {
-                    labelWiringStatus.Text = $"? Events exist. Ready to create alarms for site '{siteName}'";
+                    labelWiringStatus.Text = $"? Events exist. Click button again to recreate alarms if needed for site '{siteName}'";
                     labelWiringStatus.ForeColor = Color.DarkBlue;
                     buttonCreateEvents.Enabled = true;
-                    buttonCreateAlarms.Enabled = true; // Enable Step 2
+                    DiagnosticLogger.WriteLine("? EVENTS EXIST - button ENABLED");
                 }
                 else
                 {
-                    labelWiringStatus.Text = $"No events created yet. Click 'Step 1: Create Events' to begin.";
+                    labelWiringStatus.Text = $"No events created yet. Click 'Create Events + Alarms' to begin.";
                     labelWiringStatus.ForeColor = Color.OrangeRed;
                     buttonCreateEvents.Enabled = true;
-                    buttonCreateAlarms.Enabled = false; // Disable until events exist
+                    DiagnosticLogger.WriteLine("? NO EVENTS - button ENABLED");
                 }
 
-                // Update DataGrid
+                DiagnosticLogger.WriteLine($"Button state: CreateEventsAndAlarms={buttonCreateEvents.Enabled}");
+
+                // Update DataGrid with exact names being checked
                 dataGridViewAlarms.Rows.Clear();
-                dataGridViewAlarms.Rows.Add($"C2 Alert - {siteName}", "C2.Alert", "Medium", 
+                dataGridViewAlarms.Rows.Add(alertEventName, "User-Defined Event", "Medium", 
                     alertEvent != null ? "? Created" : "Not Created");
-                dataGridViewAlarms.Rows.Add($"C2 Alarm - {siteName}", "C2.Alarm", "High", 
+                dataGridViewAlarms.Rows.Add(alertAlarmName, "Alarm Definition", "Medium", 
+                    alertAlarm != null ? "? Created" : "Not Created");
+                dataGridViewAlarms.Rows.Add(alarmEventName, "User-Defined Event", "High", 
                     alarmEvent != null ? "? Created" : "Not Created");
+                dataGridViewAlarms.Rows.Add(alarmAlarmName, "Alarm Definition", "High", 
+                    alarmAlarm != null ? "? Created" : "Not Created");
+                
+                DiagnosticLogger.WriteLine("DataGrid updated with 4 rows");
+                //DiagnosticLogger.WriteLine($"Log file: {DiagnosticLogger.GetLogFilePath()}");
+                DiagnosticLogger.WriteLine("UpdateWiringStatus() complete");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error updating wiring status: {ex.Message}");
+                DiagnosticLogger.WriteException("UpdateWiringStatus", ex);
                 labelWiringStatus.Text = "Error checking status";
                 labelWiringStatus.ForeColor = Color.Red;
             }
@@ -1021,9 +878,9 @@ namespace CoreCommandMIP.Admin
                 ApiKey = textBoxApiKey.Text?.Trim() ?? string.Empty,
                 DefaultUsername = textBoxUsername.Text?.Trim() ?? string.Empty,
                 DefaultPassword = textBoxPassword.Text ?? string.Empty,
-                DefaultLatitude = ParseDoubleOrDefault(textBoxLatitude.Text, 0),
-                DefaultLongitude = ParseDoubleOrDefault(textBoxLongitude.Text, 0),
-                DefaultZoomLevel = ParseDoubleOrDefault(textBoxZoom.Text, 8),
+                DefaultLatitude = ParseDoubleOrDefault(textBoxLatitude.Text, 45.5098),  // Oregon Zoo
+                DefaultLongitude = ParseDoubleOrDefault(textBoxLongitude.Text, -122.7161),  // Oregon Zoo
+                DefaultZoomLevel = ParseDoubleOrDefault(textBoxZoom.Text, 14),
                 SiteRadiusMeters = 0, // Not editable in this UI
                 PollingIntervalSeconds = (double)numericUpDownPollingInterval.Value,
                 TailLength = 200,
@@ -1050,7 +907,7 @@ namespace CoreCommandMIP.Admin
             {
                 this.Cursor = Cursors.WaitCursor;
                 buttonCreateEvents.Enabled = false;
-                buttonCreateEvents.Text = "Creating Events...";
+                buttonCreateEvents.Text = "Creating...";
                 Application.DoEvents();
 
                 var siteName = textBoxName.Text?.Trim();
@@ -1062,300 +919,148 @@ namespace CoreCommandMIP.Admin
                 }
 
                 var result = MessageBox.Show(
-                    $"This will create User-Defined Events for site: {siteName}\n\n" +
-                    $"Events to create:\n" +
-                    $"  � C2.Alert - {siteName} (Medium severity)\n" +
-                    $"  � C2.Alarm - {siteName} (High severity)\n\n" +
+                    $"This will create User-Defined Events & Alarms for site: {siteName}\n\n" +
+                    $"Will create (via MIP SDK):\n" +
+                    $"  • C2_Alert_{siteName} (Event + Alarm)\n" +
+                    $"  • C2_Alarm_{siteName} (Event + Alarm)\n\n" +
+                    $"Associated cameras: {checkedListBoxCameras.CheckedItems.Count}\n\n" +
                     "Do you want to proceed?",
-                    "Create User-Defined Events",
+                    "Create Events & Alarms",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question);
 
                 if (result != DialogResult.Yes)
-                {
                     return;
-                }
 
-                this.Cursor = Cursors.WaitCursor;
-                Application.DoEvents();
+                DiagnosticLogger.WriteSection("CREATE EVENTS + ALARMS (MIP SDK)");
+                DiagnosticLogger.WriteLine($"Site: {siteName}");
+                DiagnosticLogger.WriteLine($"Using VideoOS.Platform ConfigurationItems API");
 
-                int createdCount = 0;
-                int skippedCount = 0;
+                int created = 0;
+                int existed = 0;
                 var errors = new System.Collections.Generic.List<string>();
 
-                // Create C2.Alert Event
+                // Get camera paths
+                var cameraPaths = new System.Collections.Generic.List<string>();
+                if (checkedListBoxCameras.CheckedItems.Count > 0)
+                {
+                    foreach (CameraItem cam in checkedListBoxCameras.CheckedItems)
+                    {
+                        try
+                        {
+                            var cameraItem = Configuration.Instance.GetItem(cam.Id, Kind.Camera);
+                            if (cameraItem != null)
+                            {
+                                var cameraConfig = new Camera(cameraItem.FQID);
+                                cameraPaths.Add(cameraConfig.Path);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error getting path for {cam.Name}: {ex.Message}");
+                        }
+                    }
+                }
+
+                // Create C2_Alert (Event + Alarm) via MIP SDK
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"Creating C2.Alert event for {siteName}...");
+                    DiagnosticLogger.WriteLine($"Creating C2_Alert_{siteName} via MIP SDK...");
                     
-                    var udeFolder = new UserDefinedEventFolder();
-                    udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-
-                    var udeName = $"C2.Alert - {siteName}";
-                    var existingUde = udeFolder.UserDefinedEvents
-                        .FirstOrDefault(ude => string.Equals(ude.Name, udeName, StringComparison.OrdinalIgnoreCase));
-
-                    if (existingUde == null)
+                    var alertResult = await System.Threading.Tasks.Task.Run(() =>
                     {
-                        var task = udeFolder.AddUserDefinedEvent(udeName);
-                        WaitForTaskOrThrow(task, $"Failed creating UDE '{udeName}'");
-                        createdCount++;
-                        System.Diagnostics.Debug.WriteLine($"? Created UDE: {udeName}");
-                    }
-                    else
+                        return C2AlarmWiringVerified.EnsureUdeAndAlarmDefinitionVerified(
+                            udeName: $"C2_Alert_{siteName}",
+                            alarmDefinitionName: $"C2_Alert_{siteName}",
+                            alarmPriority: "Medium",
+                            relatedCameraPaths: cameraPaths.ToArray());
+                    });
+                    
+                    if (alertResult != null)
                     {
-                        skippedCount++;
-                        System.Diagnostics.Debug.WriteLine($"UDE already exists: {udeName}");
+                        created++;
+                        DiagnosticLogger.WriteLine($"✓ Created C2_Alert_{siteName}");
                     }
                 }
                 catch (Exception ex)
                 {
                     errors.Add($"C2.Alert: {ex.Message}");
+                    DiagnosticLogger.WriteException("C2.Alert SDK creation", ex);
                 }
 
-                // Create C2.Alarm Event
+                // Create C2_Alarm (Event + Alarm) via MIP SDK
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"Creating C2.Alarm event for {siteName}...");
+                    DiagnosticLogger.WriteLine($"Creating C2_Alarm_{siteName} via MIP SDK...");
                     
-                    var udeFolder = new UserDefinedEventFolder();
-                    udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-
-                    var udeName = $"C2.Alarm - {siteName}";
-                    var existingUde = udeFolder.UserDefinedEvents
-                        .FirstOrDefault(ude => string.Equals(ude.Name, udeName, StringComparison.OrdinalIgnoreCase));
-
-                    if (existingUde == null)
+                    var alarmResult = await System.Threading.Tasks.Task.Run(() =>
                     {
-                        var task = udeFolder.AddUserDefinedEvent(udeName);
-                        WaitForTaskOrThrow(task, $"Failed creating UDE '{udeName}'");
-                        createdCount++;
-                        System.Diagnostics.Debug.WriteLine($"? Created UDE: {udeName}");
-                    }
-                    else
+                        return C2AlarmWiringVerified.EnsureUdeAndAlarmDefinitionVerified(
+                            udeName: $"C2_Alarm_{siteName}",
+                            alarmDefinitionName: $"C2_Alarm_{siteName}",
+                            alarmPriority: "High",
+                            relatedCameraPaths: cameraPaths.ToArray());
+                    });
+                    
+                    if (alarmResult != null)
                     {
-                        skippedCount++;
-                        System.Diagnostics.Debug.WriteLine($"UDE already exists: {udeName}");
+                        created++;
+                        DiagnosticLogger.WriteLine($"✓ Created C2_Alarm_{siteName}");
                     }
                 }
                 catch (Exception ex)
                 {
                     errors.Add($"C2.Alarm: {ex.Message}");
+                    DiagnosticLogger.WriteException("C2.Alarm SDK creation", ex);
                 }
 
-                // Wait for server to propagate
+                // Wait for Management Server to process
                 await System.Threading.Tasks.Task.Delay(1000);
                 
                 // Update status
                 UpdateWiringStatus();
 
                 // Show results
-                var message = $"Event Creation Complete for Site: {siteName}\n\n" +
-                             $"Created: {createdCount} events\n" +
-                             $"Already existed: {skippedCount} events\n\n";
-
-                if (createdCount > 0)
-                {
-                    message += "? Events created successfully!\n\n" +
-                              "Now click 'Step 2: Create Alarms' to create the alarm definitions.";
-                }
+                var totalProcessed = created + existed;
+                var message = $"Event & Alarm Creation Complete (MIP SDK)\n\n" +
+                             $"Site: {siteName}\n" +
+                             $"Created: {created} pairs (Event + Alarm)\n" +
+                             $"Already existed: {existed} pairs\n" +
+                             $"Total: {totalProcessed}\n\n";
 
                 if (errors.Count > 0)
                 {
-                    message += "\n\nErrors:\n" + string.Join("\n", errors);
-                    MessageBox.Show(message, "Event Creation Results", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    message += "⚠️ Errors:\n" + string.Join("\n", errors) + "\n\n";
                 }
-                else
+
+                if (totalProcessed > 0)
                 {
-                    MessageBox.Show(message, "Events Created", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    message += "✓ Events and Alarms are ready!\n\n" +
+                              "The alarm definitions are wired to trigger on their events.\n" +
+                              "Created via Milestone MIP SDK (VideoOS.Platform ConfigurationItems).";
                 }
+
+                MessageBox.Show(message, "Creation Complete", 
+                    MessageBoxButtons.OK, 
+                    errors.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error creating events:\n\n{ex.Message}\n\nSee Debug Output for details", 
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                System.Diagnostics.Debug.WriteLine($"Create events exception: {ex}");
+                DiagnosticLogger.WriteException("ButtonCreateEvents_Click (SDK)", ex);
+                MessageBox.Show($"Error: {ex.Message}\n\nSee diagnostic log for details.", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
-                this.Cursor = originalCursor;
+                buttonCreateEvents.Text = "Create Events + Alarms";
                 buttonCreateEvents.Enabled = true;
-                buttonCreateEvents.Text = "Step 1: Create Events";
+                this.Cursor = originalCursor;
             }
         }
-
-        private void EnsureUdeAndAlarmDefinition(
-            string udeName,
-            string udeDescription,
-            string alarmDefinitionName,
-            string alarmDescription,
-            string alarmPriority,
-            string[] relatedCameraPaths,
-            out bool udeCreated,
-            out bool alarmCreated)
-        {
-            udeCreated = false;
-            alarmCreated = false;
-
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"=== EnsureUdeAndAlarmDefinition START ===");
-                System.Diagnostics.Debug.WriteLine($"UDE Name: {udeName}");
-                System.Diagnostics.Debug.WriteLine($"Alarm Name: {alarmDefinitionName}");
-
-                // Access the UDE and Alarm folders using Management Client APIs
-                System.Diagnostics.Debug.WriteLine("Creating UserDefinedEventFolder...");
-                var udeFolder = new UserDefinedEventFolder();
-                
-                System.Diagnostics.Debug.WriteLine("Creating AlarmDefinitionFolder...");
-                var alarmFolder = new AlarmDefinitionFolder();
-
-                // Load children
-                System.Diagnostics.Debug.WriteLine("Loading UDE children...");
-                udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-                System.Diagnostics.Debug.WriteLine($"Found {udeFolder.UserDefinedEvents?.Count ?? 0} existing UDEs");
-                
-                System.Diagnostics.Debug.WriteLine("Loading Alarm children...");
-                alarmFolder.FillChildren(new[] { nameof(AlarmDefinition) });
-                System.Diagnostics.Debug.WriteLine($"Found {alarmFolder.AlarmDefinitions?.Count ?? 0} existing Alarms");
-
-                // 1) Ensure User-Defined Event exists
-                var ude = udeFolder.UserDefinedEvents
-                    .FirstOrDefault(e => string.Equals(e.Name, udeName, StringComparison.OrdinalIgnoreCase));
-
-                if (ude == null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"UDE not found, creating: {udeName}");
-                    var task = udeFolder.AddUserDefinedEvent(udeName);
-                    System.Diagnostics.Debug.WriteLine($"Task created, state: {task.State}");
-                    
-                    WaitForTaskOrThrow(task, $"Failed creating UDE '{udeName}'");
-
-                    udeCreated = true;
-                    System.Diagnostics.Debug.WriteLine($"? UDE created successfully");
-
-                    // Try to get the UDE path, but don't fail if we can't find it immediately
-                    System.Diagnostics.Debug.WriteLine("Waiting 500ms for server to update...");
-                    System.Threading.Thread.Sleep(500);
-                    
-                    System.Diagnostics.Debug.WriteLine("Refreshing UDE list...");
-                    udeFolder.ClearChildrenCache();
-                    udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-                    System.Diagnostics.Debug.WriteLine($"After refresh: {udeFolder.UserDefinedEvents?.Count ?? 0} UDEs");
-
-                    ude = udeFolder.UserDefinedEvents
-                        .FirstOrDefault(e => string.Equals(e.Name, udeName, StringComparison.OrdinalIgnoreCase));
-
-                    if (ude == null)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"ERROR: UDE '{udeName}' created but still not queryable after refresh!");
-                        throw new InvalidOperationException($"UDE '{udeName}' was created but cannot be found yet. The Management Server may need more time. Please wait 10 seconds and click 'Apply Recommended Wiring' again.");
-                    }
-                    
-                    System.Diagnostics.Debug.WriteLine($"? UDE found after refresh");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"UDE already exists: {udeName}");
-                }
-
-                // Verify UDE has a valid path
-                System.Diagnostics.Debug.WriteLine($"UDE Path: '{ude.Path}'");
-                if (string.IsNullOrEmpty(ude.Path))
-                {
-                    System.Diagnostics.Debug.WriteLine($"ERROR: UDE path is null or empty!");
-                    throw new InvalidOperationException($"UDE '{udeName}' has no path. Cannot create alarm definition.");
-                }
-
-                // 2) Ensure Alarm Definition exists
-                var existingAlarm = alarmFolder.AlarmDefinitions
-                    .FirstOrDefault(a => string.Equals(a.Name, alarmDefinitionName, StringComparison.OrdinalIgnoreCase));
-
-                if (existingAlarm != null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Alarm Definition already exists: {alarmDefinitionName}");
-                    return;
-                }
-
-                // Create the alarm definition wired to the UDE
-                System.Diagnostics.Debug.WriteLine($"Creating Alarm Definition: {alarmDefinitionName}");
-                
-                var eventTypeGroup = "External Events";
-                var eventType = "External Event";
-                var sourceList = ude.Path; // Link to UDE
-
-                var relatedCameraList = (relatedCameraPaths != null && relatedCameraPaths.Length > 0)
-                    ? string.Join(",", relatedCameraPaths)
-                    : string.Empty;
-
-                System.Diagnostics.Debug.WriteLine($"Alarm parameters:");
-                System.Diagnostics.Debug.WriteLine($"  Name: {alarmDefinitionName}");
-                System.Diagnostics.Debug.WriteLine($"  Description: {alarmDescription}");
-                System.Diagnostics.Debug.WriteLine($"  EventTypeGroup: {eventTypeGroup}");
-                System.Diagnostics.Debug.WriteLine($"  EventType: {eventType}");
-                System.Diagnostics.Debug.WriteLine($"  SourceList: {sourceList}");
-                System.Diagnostics.Debug.WriteLine($"  Priority: {alarmPriority}");
-                System.Diagnostics.Debug.WriteLine($"  Camera paths: {relatedCameraPaths?.Length ?? 0}");
-                if (relatedCameraPaths != null && relatedCameraPaths.Length > 0)
-                {
-                    foreach (var path in relatedCameraPaths)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"    - {path}");
-                    }
-                }
-
-                try
-                {
-                    System.Diagnostics.Debug.WriteLine("Calling AddAlarmDefinition...");
-                    var addAlarmTask = alarmFolder.AddAlarmDefinition(
-                        name: alarmDefinitionName,
-                        description: alarmDescription,
-                        eventTypeGroup: eventTypeGroup,
-                        eventType: eventType,
-                        sourceList: sourceList,
-                        enableRule: "Always",
-                        timeProfile: string.Empty,
-                        enableEventList: string.Empty,
-                        disableEventList: string.Empty,
-                        managementTimeoutTime: string.Empty,
-                        managementTimeoutEventList: string.Empty,
-                        relatedCameraList: relatedCameraList,
-                        mapType: string.Empty,
-                        relatedMap: string.Empty,
-                        owner: string.Empty,
-                        priority: alarmPriority,
-                        category: "C2 Alarms",
-                        triggerEventlist: string.Empty);
-
-                    System.Diagnostics.Debug.WriteLine($"Task created, state: {addAlarmTask.State}");
-                    WaitForTaskOrThrow(addAlarmTask, $"Failed creating Alarm Definition '{alarmDefinitionName}'");
-                    
-                    alarmCreated = true;
-                    System.Diagnostics.Debug.WriteLine($"? Alarm Definition created successfully");
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"ERROR creating alarm definition:");
-                    System.Diagnostics.Debug.WriteLine($"  Message: {ex.Message}");
-                    System.Diagnostics.Debug.WriteLine($"  Type: {ex.GetType().Name}");
-                    System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
-                    if (ex.InnerException != null)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"  Inner exception: {ex.InnerException.Message}");
-                    }
-                    throw new InvalidOperationException($"Failed to create alarm '{alarmDefinitionName}': {ex.Message}", ex);
-                }
-                
-                System.Diagnostics.Debug.WriteLine($"=== EnsureUdeAndAlarmDefinition END ===");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"=== EnsureUdeAndAlarmDefinition FAILED ===");
-                System.Diagnostics.Debug.WriteLine($"Exception: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Type: {ex.GetType().Name}");
-                throw;
-            }
-        }
+        // OLD METHOD REMOVED: EnsureUdeAndAlarmDefinition()
+        //
+        // Reason: Never called. Superseded by C2AlarmWiringVerified.EnsureUdeAndAlarmDefinitionVerified()
+        // in Admin/C2AlarmWiringVerified.cs which has proper error handling, polling, and value probing.
 
         private void WaitForTaskOrThrow(ServerTask task, string errorPrefix)
         {
@@ -1404,6 +1109,108 @@ namespace CoreCommandMIP.Admin
         private void ButtonRefreshRegions_Click(object sender, EventArgs e)
         {
             LoadRegionsAsync();
+        }
+
+        private void ButtonCheckServer_Click(object sender, EventArgs e)
+        {
+            DiagnosticLogger.WriteSection("SERVER CONNECTION CHECK");
+            
+            try
+            {
+                var config = VideoOS.Platform.Configuration.Instance;
+                var serverFQID = config?.ServerFQID;
+                
+                var info = new System.Text.StringBuilder();
+                info.AppendLine("Management Server Connection Info:");
+                info.AppendLine();
+                info.AppendLine($"Machine: {Environment.MachineName}");
+                info.AppendLine($"User: {Environment.UserName}");
+                info.AppendLine();
+                
+                if (config != null && serverFQID != null)
+                {
+                    info.AppendLine($"Server Type: {serverFQID.ServerId?.ServerType ?? "Unknown"}");
+                    
+                    var serverId = serverFQID.ServerId?.Id;
+                    info.AppendLine($"Server ID: {(serverId.HasValue ? serverId.Value.ToString() : "Unknown")}");
+                    
+                    info.AppendLine($"Connected: Yes");
+                    
+                    DiagnosticLogger.WriteLine($"Server Type: {serverFQID.ServerId?.ServerType}");
+                    DiagnosticLogger.WriteLine($"Server ID: {(serverId.HasValue ? serverId.Value.ToString() : "Unknown")}");
+                }
+                else
+                {
+                    info.AppendLine("ERROR: Not connected to Management Server!");
+                    DiagnosticLogger.WriteLine("ERROR: Configuration.Instance is null!");
+                }
+                
+                info.AppendLine();
+                info.AppendLine("Checking for User-Defined Events:");
+                
+                var udeFolder = new UserDefinedEventFolder();
+                udeFolder.ClearChildrenCache();
+                udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
+                
+                int totalUDEs = udeFolder.UserDefinedEvents?.Count ?? 0;
+                info.AppendLine($"Total UDEs found: {totalUDEs}");
+                
+                DiagnosticLogger.WriteLine($"Total UDEs found: {totalUDEs}");
+                
+                if (totalUDEs > 0)
+                {
+                    info.AppendLine();
+                    info.AppendLine("User-Defined Events:");
+                    foreach (var ude in udeFolder.UserDefinedEvents)
+                    {
+                        info.AppendLine($"  - {ude.Name}");
+                        DiagnosticLogger.WriteLine($"  UDE: {ude.Name}");
+                    }
+                    
+                    // Check for NRK events specifically
+                    var nrkEvents = udeFolder.UserDefinedEvents
+                        .Where(u => u.Name.Contains("NRK"))
+                        .ToList();
+                    
+                    if (nrkEvents.Any())
+                    {
+                        info.AppendLine();
+                        info.AppendLine($"NRK-related events found: {nrkEvents.Count}");
+                        foreach (var nrkEvent in nrkEvents)
+                        {
+                            info.AppendLine($"  ? {nrkEvent.Name}");
+                        }
+                    }
+                    else
+                    {
+                        info.AppendLine();
+                        info.AppendLine("?? NO NRK events found!");
+                    }
+                }
+                else
+                {
+                    info.AppendLine();
+                    info.AppendLine("?? NO User-Defined Events found on this server!");
+                    info.AppendLine();
+                    info.AppendLine("This means either:");
+                    info.AppendLine("1. No events have been created yet");
+                    info.AppendLine("2. You're looking at a DIFFERENT Management Server");
+                    info.AppendLine();
+                    info.AppendLine("Check: Are you connected to the right server?");
+                }
+                
+                info.AppendLine();
+                //info.AppendLine($"Log file: {DiagnosticLogger.GetLogFilePath()}");
+                
+                MessageBox.Show(info.ToString(), "Server Connection Check", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.WriteException("ButtonCheckServer_Click", ex);
+                MessageBox.Show($"Error checking server:\n\n{ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void ButtonOfflineMapData_Click(object sender, EventArgs e)
@@ -1819,8 +1626,7 @@ For this plugin specifically:
             // Tab 3: Camera selection
             LoadSelectedCameras(settings.AssociatedCameraIds);
             
-            // Tab 3: Load existing UDEs and Alarms and update wiring status
-            LoadExistingEventDefinitions();
+            // Tab 3: Update wiring status
             UpdateWiringStatus();
         }
 
@@ -1846,9 +1652,9 @@ For this plugin specifically:
             settings.Enable3DMap = checkBoxEnable3DMap.Checked;
             settings.Enable3DBuildings = checkBoxEnable3DBuildings.Checked;
             settings.Enable3DTerrain = checkBoxEnable3DTerrain.Checked;
-            settings.DefaultLatitude = ParseDoubleOrDefault(textBoxLatitude.Text, 0);
-            settings.DefaultLongitude = ParseDoubleOrDefault(textBoxLongitude.Text, 0);
-            settings.DefaultZoomLevel = ParseDoubleOrDefault(textBoxZoom.Text, 8);
+            settings.DefaultLatitude = ParseDoubleOrDefault(textBoxLatitude.Text, 45.5098);  // Oregon Zoo
+            settings.DefaultLongitude = ParseDoubleOrDefault(textBoxLongitude.Text, -122.7161);  // Oregon Zoo
+            settings.DefaultZoomLevel = ParseDoubleOrDefault(textBoxZoom.Text, 14);
             settings.PollingIntervalSeconds = (double)numericUpDownPollingInterval.Value;
             settings.SelectedRegionIds = GetSelectedRegionIds();
 
@@ -1861,183 +1667,6 @@ For this plugin specifically:
         private static double ParseDoubleOrDefault(string value, double defaultValue)
         {
             return double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : defaultValue;
-        }
-
-        private void LoadExistingEventDefinitions()
-        {
-            try
-            {
-                // Find the listbox
-                var listBox = FindControlByName<ListBox>(tabControl.TabPages[2], "listBoxExistingDefinitions");
-                if (listBox == null)
-                {
-                    System.Diagnostics.Debug.WriteLine("LoadExistingEventDefinitions: ListBox not found!");
-                    return;
-                }
-
-                listBox.Items.Clear();
-                System.Diagnostics.Debug.WriteLine("=== Loading Existing Event Definitions ===");
-
-                // Load User-Defined Events
-                var udeFolder = new UserDefinedEventFolder();
-                udeFolder.FillChildren(new[] { nameof(UserDefinedEvent) });
-
-                System.Diagnostics.Debug.WriteLine($"Total UDEs found: {udeFolder.UserDefinedEvents?.Count ?? 0}");
-                
-                int udeCount = 0;
-                if (udeFolder.UserDefinedEvents != null)
-                {
-                    foreach (var ude in udeFolder.UserDefinedEvents)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"  UDE: {ude.Name}");
-                        
-                        if (ude.Name != null && (ude.Name.StartsWith("C2.") || ude.Name.Contains("C2 ") || ude.Name.Contains("C2-")))
-                        {
-                            var displayItem = new DefinitionListItem
-                            {
-                                Name = ude.Name,
-                                Type = "[Event]",
-                                Path = ude.Path,
-                                ConfigItem = ude
-                            };
-                            listBox.Items.Add(displayItem);
-                            udeCount++;
-                            System.Diagnostics.Debug.WriteLine($"    ? Added C2 UDE: {ude.Name}");
-                        }
-                    }
-                }
-
-                // Load Alarm Definitions
-                var alarmFolder = new AlarmDefinitionFolder();
-                alarmFolder.FillChildren(new[] { nameof(AlarmDefinition) });
-
-                System.Diagnostics.Debug.WriteLine($"Total Alarms found: {alarmFolder.AlarmDefinitions?.Count ?? 0}");
-                
-                int alarmCount = 0;
-                if (alarmFolder.AlarmDefinitions != null)
-                {
-                    foreach (var alarm in alarmFolder.AlarmDefinitions)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"  Alarm: {alarm.Name}");
-                        
-                        if (alarm.Name != null && (alarm.Name.StartsWith("C2") || alarm.Name.Contains("C2 ") || alarm.Name.Contains("C2-")))
-                        {
-                            var displayItem = new DefinitionListItem
-                            {
-                                Name = alarm.Name,
-                                Type = "[Alarm]",
-                                Path = alarm.Path,
-                                ConfigItem = alarm
-                            };
-                            listBox.Items.Add(displayItem);
-                            alarmCount++;
-                            System.Diagnostics.Debug.WriteLine($"    ? Added C2 Alarm: {alarm.Name}");
-                        }
-                    }
-                }
-
-                System.Diagnostics.Debug.WriteLine($"=== Loaded {udeCount} C2 events and {alarmCount} C2 alarms ===");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading existing definitions: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-                MessageBox.Show($"Error loading definitions: {ex.Message}\n\nCheck Debug Output for details.", 
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
-        private T FindControlByName<T>(Control parent, string name) where T : Control
-        {
-            foreach (Control control in parent.Controls)
-            {
-                if (control is T && control.Name == name)
-                    return (T)control;
-                
-                if (control.HasChildren)
-                {
-                    var found = FindControlByName<T>(control, name);
-                    if (found != null) return found;
-                }
-            }
-            return null;
-        }
-
-        private void ButtonShowInfo_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                var listBox = FindControlByName<ListBox>(tabControl.TabPages[2], "listBoxExistingDefinitions");
-                if (listBox == null || listBox.SelectedItem == null)
-                {
-                    MessageBox.Show("Please select an item to view details.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-
-                var selectedItem = listBox.SelectedItem as DefinitionListItem;
-                if (selectedItem == null) return;
-
-                var info = new System.Text.StringBuilder();
-                info.AppendLine($"Name: {selectedItem.Name}");
-                info.AppendLine($"Type: {selectedItem.Type}");
-                info.AppendLine($"Path: {selectedItem.Path}");
-                info.AppendLine();
-
-                if (selectedItem.ConfigItem is UserDefinedEvent ude)
-                {
-                    info.AppendLine("User-Defined Event Details:");
-                    info.AppendLine($"  Display Name: {ude.DisplayName}");
-                }
-                else if (selectedItem.ConfigItem is AlarmDefinition alarm)
-                {
-                    info.AppendLine("Alarm Definition Details:");
-                    info.AppendLine($"  Display Name: {alarm.DisplayName}");
-                    info.AppendLine($"  Priority: {alarm.Priority}");
-                    info.AppendLine($"  Category: {alarm.Category}");
-                    info.AppendLine($"  Event Type: {alarm.EventType}");
-                    info.AppendLine($"  Source: {alarm.SourceList}");
-                }
-
-                MessageBox.Show(info.ToString(), "Item Details", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error showing info: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void ButtonOpenInMC_Click(object sender, EventArgs e)
-        {
-            var listBox = FindControlByName<ListBox>(tabControl.TabPages[2], "listBoxExistingDefinitions");
-            if (listBox == null || listBox.SelectedItem == null)
-            {
-                MessageBox.Show("Please select an item to open.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            MessageBox.Show(
-                "To modify this definition:\n\n" +
-                "1. Open Management Client\n" +
-                "2. Navigate to Rules and Events\n" +
-                "3. Find the definition by name\n" +
-                "4. Double-click to edit\n\n" +
-                "Note: Direct navigation from plugin is not supported by Milestone API.",
-                "Open in Management Client",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
-
-        private class DefinitionListItem
-        {
-            public string Name { get; set; }
-            public string Type { get; set; }
-            public string Path { get; set; }
-            public object ConfigItem { get; set; } // Can be UserDefinedEvent or AlarmDefinition
-
-            public override string ToString()
-            {
-                return $"{Type} {Name}";
-            }
         }
 
         private void LoadSelectedCameras(string cameraIdsString)
@@ -2111,24 +1740,29 @@ For this plugin specifically:
             if (settings == null)
             {
                 System.Diagnostics.Debug.WriteLine("UpdateSitePreview: Settings are null");
+                ShowMapPlaceholder();
                 return;
             }
 
-            // Check if tab is visible
-            if (!tabControl.TabPages[1].Visible)
+            // Check if WebView2 is initialized
+            if (webViewSitePreview.CoreWebView2 == null)
             {
-                System.Diagnostics.Debug.WriteLine("UpdateSitePreview: Tab 2 not visible yet, skipping");
+                System.Diagnostics.Debug.WriteLine("UpdateSitePreview: CoreWebView2 not initialized yet, will retry when ready");
+                
+                // Store settings for later update when WebView2 is ready
+                // The HandleCreated event will call UpdateSitePreview again
                 return;
             }
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"UpdateSitePreview: Lat={settings.DefaultLatitude}, Lon={settings.DefaultLongitude}, Zoom={settings.DefaultZoomLevel}");
+                var lat = settings.DefaultLatitude;
+                var lon = settings.DefaultLongitude;
+                var zoom = settings.DefaultZoomLevel;
                 
-                // Ensure WebView2 is initialized
-                await webViewSitePreview.EnsureCoreWebView2Async(null);
-                System.Diagnostics.Debug.WriteLine("UpdateSitePreview: WebView2 initialized");
-
+                System.Diagnostics.Debug.WriteLine($"UpdateSitePreview: Lat={lat}, Lon={lon}, Zoom={zoom}");
+                System.Diagnostics.Debug.WriteLine($"  From text boxes: Lat='{textBoxLatitude.Text}', Lon='{textBoxLongitude.Text}', Zoom='{textBoxZoom.Text}'");
+                
                 var siteName = textBoxName?.Text ?? "Site";
                 
                 var html = $@"<!DOCTYPE html>
@@ -2145,18 +1779,18 @@ For this plugin specifically:
     <div id='map'></div>
     <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
     <script>
-        console.log('Creating map at lat={settings.DefaultLatitude}, lon={settings.DefaultLongitude}, zoom={settings.DefaultZoomLevel}');
-        var map = L.map('map').setView([{settings.DefaultLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {settings.DefaultLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}], {settings.DefaultZoomLevel.ToString(System.Globalization.CultureInfo.InvariantCulture)});
+        console.log('Creating map at lat={lat}, lon={lon}, zoom={zoom}');
+        var map = L.map('map').setView([{lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}], {zoom.ToString(System.Globalization.CultureInfo.InvariantCulture)});
         
         L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
             maxZoom: 19,
-            attribution: '� OpenStreetMap'
+            attribution: '© OpenStreetMap'
         }}).addTo(map);
         
-        var marker = L.marker([{settings.DefaultLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {settings.DefaultLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}]).addTo(map);
+        var marker = L.marker([{lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}]).addTo(map);
         marker.bindPopup('{siteName.Replace("'", "\\'")}').openPopup();
         
-        {(settings.SiteRadiusMeters > 0 ? $@"L.circle([{settings.DefaultLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {settings.DefaultLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}], {{
+        {(settings.SiteRadiusMeters > 0 ? $@"L.circle([{lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}], {{
             radius: {settings.SiteRadiusMeters.ToString(System.Globalization.CultureInfo.InvariantCulture)},
             color: '#1e88e5',
             fillColor: '#1e88e5',
@@ -2169,12 +1803,225 @@ For this plugin specifically:
 </html>";
 
                 webViewSitePreview.NavigateToString(html);
-                System.Diagnostics.Debug.WriteLine("UpdateSitePreview: Map HTML loaded");
+                System.Diagnostics.Debug.WriteLine("UpdateSitePreview: Map HTML loaded successfully");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error updating site preview: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                DiagnosticLogger.WriteException("UpdateSitePreview", ex);
+            }
+        }
+
+        private void ShowMapPlaceholder()
+        {
+            if (webViewSitePreview == null || webViewSitePreview.CoreWebView2 == null)
+                return;
+
+            try
+            {
+                var html = @"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'/>
+    <title>Map Preview</title>
+    <style>
+        html, body { 
+            height: 100%; 
+            margin: 0; 
+            padding: 0; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f0f0f0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .placeholder {
+            text-align: center;
+            color: #666;
+        }
+        .placeholder h2 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .placeholder p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class='placeholder'>
+        <h2>Map Preview</h2>
+        <p>Enter coordinates and zoom level</p>
+        <p>to see site location preview</p>
+    </div>
+</body>
+</html>";
+                
+                webViewSitePreview.NavigateToString(html);
+                System.Diagnostics.Debug.WriteLine("Placeholder map shown");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing placeholder: {ex.Message}");
+            }
+        }
+
+        private void ButtonQueryAllEvents_Click(object sender, EventArgs e)
+        {
+            DiagnosticLogger.WriteSection("QUERY ALL EVENTS (UserDefinedEventFolder.UserDefinedEvents)");
+            
+            try
+            {
+                ServerId msServerId = Configuration.Instance.ServerFQID.ServerId;
+                var ms = new ManagementServer(msServerId);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var folder = ms.UserDefinedEventFolder.UserDefinedEvents.ToArray();
+                var alarmFolder = ms.AlarmDefinitionFolder.AlarmDefinitions.ToArray();
+                
+
+                var userDef1 = new ManagementServer(msServerId).UserDefinedEventFolder;
+                userDef1.ClearChildrenCache();
+                userDef1.FillChildren(new[] { "UserDefinedEvents" });
+                foreach (var udv in userDef1.UserDefinedEvents)
+                { 
+                    DiagnosticLogger.WriteLine($"Using FillInChildrenUDE from userDef1: {udv.Name}");
+                }
+
+                //var folder = new UserDefinedEventFolder();
+                DiagnosticLogger.WriteLine($"Management Server:  {ms.Name}");
+                DiagnosticLogger.WriteLine($"User Events Folder:  {folder.Count()}");
+                DiagnosticLogger.WriteLine($"User Events Folder Path:  {folder.Length}");
+                DiagnosticLogger.WriteLine($"Alarm Folder:  {alarmFolder.Count()}");
+                DiagnosticLogger.WriteLine($"Alarm   Folder Path:  {alarmFolder.Length}");
+
+
+
+                //folder.ClearChildrenCache();
+                //folder.FillChildren(new[] { "UserDefinedEvent" });
+
+
+
+                //var userEvents = folder.UserDefinedEvents?.ToList() ?? new System.Collections.Generic.List<UserDefinedEvent>();
+                sw.Stop();
+                
+                DiagnosticLogger.WriteLine($"Query completed in {sw.ElapsedMilliseconds}ms");
+                DiagnosticLogger.WriteLine($"Total UserDefinedEvents: {folder.Count()}");
+                DiagnosticLogger.WriteLine($"Total AlarmDefinitions: {alarmFolder.Count()}");
+
+
+                var info = new System.Text.StringBuilder();
+                info.AppendLine($"UserDefinedEventFolder.UserDefinedEvents Query:");
+                info.AppendLine();
+                info.AppendLine($"Time: {sw.ElapsedMilliseconds}ms");
+                info.AppendLine($"Total Events: {folder.Count()}");
+                info.AppendLine();
+                
+                if (folder.Count() > 0)
+                {
+                    info.AppendLine("User-Defined Events:");
+                    DiagnosticLogger.WriteLine("All User-Defined Events:");
+                    var Eventinfo = new System.Text.StringBuilder();
+                    DumpItemCollections(folder, Eventinfo);
+                    DiagnosticLogger.WriteLine(Eventinfo.ToString());
+                   
+
+                    var Alarminfo = new System.Text.StringBuilder();
+                    DumpItemCollections(alarmFolder, Alarminfo);
+                    DiagnosticLogger.WriteLine(Alarminfo.ToString());
+                    foreach (var evt in folder)
+                    {
+                        info.AppendLine($"  - {evt.Name}");
+                        DiagnosticLogger.WriteLine($"  - Event Name: {evt.Name}");
+                        DiagnosticLogger.WriteLine($"    Event Path: {evt.Path}");
+                       
+        
+                    }
+                    
+                    // Check for NRK events
+                    var nrkEvents = folder.Where(ev => ev.Name.Contains("NRK")).ToList();
+                    if (nrkEvents.Any())
+                    {
+                        info.AppendLine();
+                        info.AppendLine($"? NRK Events Found: {nrkEvents.Count}");
+                        foreach (var nrkEvt in nrkEvents)
+                        {
+                            info.AppendLine($"    • {nrkEvt.Name}");
+                        }
+                    }
+                    else
+                    {
+                        info.AppendLine();
+                        info.AppendLine("?? No NRK events found");
+                    }
+                }
+                else
+                {
+                    info.AppendLine("?? NO USER-DEFINED EVENTS FOUND!");
+                    info.AppendLine();
+                    info.AppendLine("FillChildren() returned 0 events.");
+                    info.AppendLine("Create events manually in");
+                    info.AppendLine("Management Client to test.");
+                }
+                
+                info.AppendLine();
+                //info.AppendLine($"Log: {DiagnosticLogger.GetLogFilePath()}");
+                
+                MessageBox.Show(info.ToString(), "Query All Events", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.WriteException("ButtonQueryAllEvents_Click", ex);
+                MessageBox.Show($"Error querying events:\n\n{ex.Message}\n\nSee log for stack trace", 
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        void DumpItemCollections(object obj, System.Text.StringBuilder info)
+        {
+            if (obj == null)
+                return;
+
+            var type = obj.GetType();
+            info.AppendLine($"Inspecting: {type.FullName}");
+
+            foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                // Skip indexers
+                if (prop.GetIndexParameters().Length > 0)
+                    continue;
+
+                object value;
+                try
+                {
+                    value = prop.GetValue(obj);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (value is IEnumerable enumerable && !(value is string))
+                {
+                    info.AppendLine($"  Property: {prop.Name}");
+
+                    foreach (var item in enumerable)
+                    {
+                        if (item == null)
+                            continue;
+
+                        if (item is Item mipItem)
+                        {
+                            info.AppendLine($"    - {mipItem.Name}");
+                            //DiagnosticLogger.WriteLine($"    Path: {mipItem..Path}");
+                        }
+                        else
+                        {
+                            info.AppendLine($"    - {item}");
+                        }
+                    }
+                }
             }
         }
 

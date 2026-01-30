@@ -40,10 +40,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.1901.177" />
-    <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="*" />
-    <PackageReference Include="Newtonsoft.Json">
-      <Version>13.0.4</Version>
-    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System" />
@@ -63,8 +60,10 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
+    <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="*" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Admin\C2AlarmWiringRest.cs" />
     <Compile Include="Admin\C2AlarmWiringVerified.cs" />
     <Compile Include="Admin\CoreCommandMIPAddUserControl.cs">
       <SubType>UserControl</SubType>
@@ -103,6 +102,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Admin\DiagnosticLogger.cs" />
+    <Compile Include="Admin\MilestoneRestClient.cs" />
     <Compile Include="Background\CoreCommandMIPBackgroundPlugin.cs" />
     <Compile Include="Background\EventTriggerService.cs" />
     <Compile Include="Background\TrackAlarmEventHandler.cs" />
@@ -236,22 +236,15 @@
   <ItemGroup>
     <None Include=".gitignore" />
     <None Include="add-event-server-logging.ps1" />
-    <None Include="ALARM_CATEGORY_FIX_COMPLETE.md" />
     <None Include="ALARM_CREATION_DIAGNOSTIC_GUIDE.md" />
-    <None Include="ALARM_CREATION_TEMP_PATTERN_FIX.md" />
     <None Include="ALARM_IMPLEMENTATION_FINAL_STATUS.md" />
     <None Include="ALARM_IMPLEMENTATION_GUIDE.md" />
     <None Include="ALARM_IMPLEMENTATION_REALITY_CHECK.md" />
     <None Include="ALARM_MESSAGES_NOT_REACHING_EVENT_SERVER.md" />
-    <None Include="ALARM_PROBING_COMPLETE_SUMMARY.md" />
     <None Include="ALARM_SYSTEM_REDESIGN.md" />
-    <None Include="ALARM_VALUE_PROBING_COMPLETE.md" />
-    <None Include="ALARM_VALUE_PROBING_QUICK_REF.md" />
     <None Include="ALL_THREE_FEATURES_COMPLETE.md" />
     <None Include="ANALYTICS_EVENTS_GUIDE.md" />
     <None Include="ARROWS_AND_REGIONS_STATUS.md" />
-    <None Include="CODE_CLEANUP_REDUNDANT_METHODS_REMOVED.md" />
-    <None Include="commit-alarm-event-001.ps1" />
     <None Include="CONFIGURATION_API_CACHE_FIX.md" />
     <None Include="create-maptemplate.ps1" />
     <None Include="Deploy-MapCache.ps1" />
@@ -262,7 +255,6 @@
     <None Include="EVENT_NAMING_NO_SPACES_FIX.md" />
     <None Include="EVENT_SERVER_COMPREHENSIVE_LOGGING.md" />
     <None Include="EVENT_SERVER_PLUGIN_DEPLOYMENT.md" />
-    <None Include="FINAL_CODE_CLEANUP_COMPLETE.md" />
     <None Include="fix-event-names-no-spaces.ps1" />
     <None Include="fix-guid-selection.ps1" />
     <None Include="fix-mapbox-template.ps1" />
@@ -279,9 +271,6 @@
     <None Include="INTEGRATED_TRACKLIST_COMPLETE.md" />
     <None Include="MAPBOX_INTEGRATION_GUIDE.md" />
     <None Include="MAP_CACHE_CLEARING_FEATURE.md" />
-    <None Include="MAP_PREVIEW_WEBVIEW2_FIX.md" />
-    <None Include="MILESTONE_LOGGING_INTEGRATION_COMPLETE.md" />
-    <None Include="OAUTH_BEARER_TOKEN_COMPLETE.md" />
     <None Include="OFFLINE_MAP_DEPLOYMENT_GUIDE.md" />
     <None Include="PHASE1_COMPLETE.md" />
     <None Include="PHASE2_ADMIN_UI_REDESIGN_PLAN.md" />
@@ -299,11 +288,7 @@
     <None Include="REGION_NOT_SHOWING_DEBUG.md" />
     <None Include="REGION_SELECTION_FEATURE.md" />
     <None Include="remove-alarm-selection-code.ps1" />
-    <None Include="REST_API_MIGRATION_STATUS.md" />
     <None Include="restore-maptemplate.ps1" />
-    <None Include="REST_AUTH_FIX_COMPLETE.md" />
-    <None Include="REST_AUTH_FIX_GUIDE.md" />
-    <None Include="SDK_REVERT_COMPLETE.md" />
     <None Include="SERVER_SIDE_ALARMS_COMPLETE.md" />
     <None Include="setup-github.bat" />
     <None Include="SITE_SPECIFIC_EVENTS_COMPLETE.md" />
@@ -317,7 +302,6 @@
     <None Include="TRACK_ICONS_DEPLOYMENT_FIX.md" />
     <None Include="TRACK_ICONS_NOT_SHOWING_FIX.md" />
     <None Include="UDE_ALARM_CREATION_NOTES.md" />
-    <None Include="UI_CLEANUP_EXISTING_DEFINITIONS_REMOVED.md" />
     <None Include="update-event-trigger.ps1" />
     <None Include="update-integrated-tracklist.ps1" />
     <None Include="URGENT_REGIONS_ICONS_FIX.md" />
@@ -327,6 +311,13 @@
     <Folder Include="Packaged\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
   <PropertyGroup>
     <PostBuildEvent>
     </PostBuildEvent>

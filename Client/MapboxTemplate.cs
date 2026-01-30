@@ -7,7 +7,7 @@ namespace CoreCommandMIP.Client
 	{
 		internal static string GetMapHtml(string accessToken)
 		{
-			// Load icons using MapTemplate's icon loading logic
+			// Load icons BEFORE building HTML
 			System.Diagnostics.Debug.WriteLine("=== Loading Track Icons for Mapbox ===");
 			var personIcon = MapTemplate.LoadIconDataUri("person.png");
 			var vehicleIcon = MapTemplate.LoadIconDataUri("vehicle.png");
@@ -17,6 +17,7 @@ namespace CoreCommandMIP.Client
 			var arrowIcon = MapTemplate.LoadIconDataUri("arrow.png");
 			System.Diagnostics.Debug.WriteLine("=== Mapbox Icons Loaded ===");
 
+			// Build HTML with placeholders
 			var html = $@"<!DOCTYPE html>
 <html lang='en'>
 <head>
@@ -32,17 +33,7 @@ html, body, #map {{ height: 100%; margin: 0; padding: 0; background-color: #1b1b
     width: 32px;
     height: 32px;
     display: block;
-    filter: brightness(1.2) contrast(1.3) drop-shadow(0 0 3px rgba(255,255,255,0.8)) drop-shadow(0 2px 6px rgba(0,0,0,0.9));
-}}
-.track-label {{
-    background: rgba(0,0,0,0.8);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: 'Segoe UI', sans-serif;
-    white-space: nowrap;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    filter: brightness(1.2) contrast(1.3) drop-shadow(0 0 3px rgba(255,255,255,0.8));
 }}
 </style>
 </head>
@@ -63,55 +54,17 @@ const map = new mapboxgl.Map({{
 map.addControl(new mapboxgl.NavigationControl());
 map.addControl(new mapboxgl.FullscreenControl());
 
-// Add 3D terrain and buildings if enabled
+// 3D features
 '__3D_ENABLED__' === 'True' && map.on('load', () => {{
-    console.log('=== Enabling 3D features ===');
-    
-    // Add 3D terrain
     if ('__3D_TERRAIN__' === 'True') {{
-        console.log('Adding 3D terrain');
-        map.addSource('mapbox-dem', {{
-            'type': 'raster-dem',
-            'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-            'tileSize': 512,
-            'maxzoom': 14
-        }});
-        map.setTerrain({{ 'source': 'mapbox-dem', 'exaggeration': 1.5 }});
+        map.addSource('mapbox-dem', {{ type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 }});
+        map.setTerrain({{ source: 'mapbox-dem', exaggeration: 1.5 }});
     }}
-    
-    // Add 3D buildings
     if ('__3D_BUILDINGS__' === 'True') {{
-        console.log('Adding 3D buildings');
         const layers = map.getStyle().layers;
-        const labelLayerId = layers.find(
-            (layer) => layer.type === 'symbol' && layer.layout['text-field']
-        ).id;
-        
-        map.addLayer({{
-            'id': '3d-buildings',
-            'source': 'composite',
-            'source-layer': 'building',
-            'filter': ['==', 'extrude', 'true'],
-            'type': 'fill-extrusion',
-            'minzoom': 15,
-            'paint': {{
-                'fill-extrusion-color': '#aaa',
-                'fill-extrusion-height': [
-                    'interpolate', ['linear'], ['zoom'],
-                    15, 0,
-                    15.05, ['get', 'height']
-                ],
-                'fill-extrusion-base': [
-                    'interpolate', ['linear'], ['zoom'],
-                    15, 0,
-                    15.05, ['get', 'min_height']
-                ],
-                'fill-extrusion-opacity': 0.6
-            }}
-        }}, labelLayerId);
+        const labelLayerId = layers.find(l => l.type === 'symbol' && l.layout['text-field']).id;
+        map.addLayer({{ id: '3d-buildings', source: 'composite', 'source-layer': 'building', filter: ['==', 'extrude', 'true'], type: 'fill-extrusion', minzoom: 15, paint: {{ 'fill-extrusion-color': '#aaa', 'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']], 'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']], 'fill-extrusion-opacity': 0.6 }} }}, labelLayerId);
     }}
-    
-    console.log('=== 3D features enabled ===');
 }});
 
 const DEFAULT_TAIL = __TAIL__;
@@ -119,176 +72,18 @@ let userZoom = __ZOOM__;
 let regionLayers = [];
 let trackMarkers = {{}};
 
-// Icon mapping by classification type
-const iconMap = {{
-    'person': '__PERSON_ICON__',
-    'vehicle': '__VEHICLE_ICON__',
-    'drone': '__DRONE_ICON__',
-    'aerial': '__AERIAL_ICON__',
-    'bird': '__BIRD_ICON__',
-    'animal': '__BIRD_ICON__',
-    'unknown': '__ARROW_ICON__'
-}};
+const iconMap = {{ person: '__PERSON_ICON__', vehicle: '__VEHICLE_ICON__', drone: '__DRONE_ICON__', aerial: '__AERIAL_ICON__', bird: '__BIRD_ICON__', animal: '__BIRD_ICON__', unknown: '__ARROW_ICON__' }};
 
-console.log('=== Mapbox Icon Map Loaded ===');
-console.log('Person icon length:', iconMap['person'].length);
-
-function getIconUrl(classification) {{
-    const key = (classification || 'unknown').toLowerCase();
-    const url = iconMap[key] || iconMap['unknown'];
-    console.log('getIconUrl:', classification, 'URL length:', url ? url.length : 0);
-    return url;
-}}
-
-map.on('zoomend', () => {{
-    userZoom = map.getZoom();
-}});
-
-window.getCurrentZoom = () => map.getZoom();
-
-window.clearRegions = () => {{
-    console.log('Clearing', regionLayers.length, 'regions');
-    regionLayers.forEach(layerId => {{
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        if (map.getSource(layerId)) map.removeSource(layerId);
-    }});
-    regionLayers = [];
-}};
-
-window.addRegion = (region) => {{
-    if (!region || !region.vertices || region.vertices.length < 3) return;
-    
-    try {{
-        const layerId = 'region-' + Math.random().toString(36).substr(2, 9);
-        const coordinates = region.vertices.map(v => [v.lng, v.lat]);
-        coordinates.push(coordinates[0]);
-        
-        const color = region.color || '#ff6b6b';
-        const fillOpacity = (region.fill >= 0 && region.fill <= 1) ? region.fill : 0.2;
-        
-        map.addSource(layerId, {{
-            type: 'geojson',
-            data: {{
-                type: 'Feature',
-                geometry: {{ type: 'Polygon', coordinates: [coordinates] }},
-                properties: {{ name: region.name || 'Region', exclusion: region.exclusion || false }}
-            }}
-        }});
-        
-        map.addLayer({{
-            id: layerId + '-fill',
-            type: 'fill',
-            source: layerId,
-            paint: {{ 'fill-color': color, 'fill-opacity': fillOpacity }}
-        }});
-        
-        map.addLayer({{
-            id: layerId + '-outline',
-            type: 'line',
-            source: layerId,
-            paint: {{ 'line-color': color, 'line-width': 2, 'line-opacity': 0.8, 'line-dasharray': region.exclusion ? [2, 2] : [1, 0] }}
-        }});
-        
-        regionLayers.push(layerId + '-fill', layerId + '-outline', layerId);
-        
-        // Disable region click popup - we only want track popups
-        // map.on('click', layerId + '-fill', (e) => {{
-        //     const name = e.features[0].properties.name;
-        //     const type = e.features[0].properties.exclusion ? 'Exclusion Zone' : 'Inclusion Zone';
-        //     new mapboxgl.Popup().setLngLat(e.lngLat).setHTML('<b>' + name + '</b><br/>' + type).addTo(map);
-        // }});
-    }} catch (e) {{ console.error('Error adding region:', e); }}
-}};
-
-window.updateTracks = (tracks) => {{
-    if (!tracks || tracks.length === 0) return;
-    
-    const bounds = new mapboxgl.LngLatBounds();
-    
-    tracks.forEach(track => {{
-        const trackId = track.id;
-        const lngLat = [track.lng, track.lat];
-        bounds.extend(lngLat);
-        
-        const tailLimit = (track.tail && track.tail > 0) ? track.tail : DEFAULT_TAIL;
-        
-        if (!trackMarkers[trackId]) {{
-            console.log('Creating marker for track', trackId, 'classification:', track.classification);
-            
-            const iconUrl = getIconUrl(track.classification);
-            const el = document.createElement('img');
-            el.src = iconUrl;
-            el.className = 'track-icon';
-            el.style.cursor = 'pointer';
-            
-            const marker = new mapboxgl.Marker({{element: el}})
-                .setLngLat(lngLat)
-                .setPopup(new mapboxgl.Popup({{offset: 15}}).setHTML('<b>' + track.label + '</b><br/>' + track.details))
-                .addTo(map);
-            
-            trackMarkers[trackId] = {{
-                marker: marker,
-                tailPoints: [lngLat],
-                line: null,
-                classification: track.classification
-            }};
-        }} else {{
-            const trackData = trackMarkers[trackId];
-            trackData.marker.setLngLat(lngLat);
-            
-            if (trackData.classification !== track.classification) {{
-                trackData.marker.getElement().src = getIconUrl(track.classification);
-                trackData.classification = track.classification;
-            }}
-            
-            trackData.marker.setPopup(new mapboxgl.Popup({{offset: 15}}).setHTML('<b>' + track.label + '</b><br/>' + track.details));
-            trackData.tailPoints.push(lngLat);
-            if (trackData.tailPoints.length > tailLimit) trackData.tailPoints.shift();
-            
-            const lineId = 'track-line-' + trackId;
-            if (map.getSource(lineId)) {{
-                map.getSource(lineId).setData({{ type: 'Feature', geometry: {{ type: 'LineString', coordinates: trackData.tailPoints }} }});
-            }} else {{
-                map.addSource(lineId, {{ type: 'geojson', data: {{ type: 'Feature', geometry: {{ type: 'LineString', coordinates: trackData.tailPoints }} }} }});
-                map.addLayer({{ id: lineId, type: 'line', source: lineId, paint: {{ 'line-color': track.color || '#1e88e5', 'line-width': 3, 'line-opacity': 0.8 }} }});
-                trackData.line = lineId;
-            }}
-        }}
-    }});
-    
-    // Map stays centered on site - no auto-panning to tracks
-}};
-
-window.clearInactiveTracks = (activeIds) => {{
-    Object.keys(trackMarkers).forEach(trackId => {{
-        if (!activeIds.includes(parseInt(trackId))) {{
-            const trackData = trackMarkers[trackId];
-            trackData.marker.remove();
-            if (trackData.line && map.getLayer(trackData.line)) {{
-                map.removeLayer(trackData.line);
-                map.removeSource(trackData.line);
-            }}
-            delete trackMarkers[trackId];
-        }}
-    }});
-}};
-
-window.clearAllTracks = () => {{
-    Object.keys(trackMarkers).forEach(trackId => {{
-        const trackData = trackMarkers[trackId];
-        trackData.marker.remove();
-        if (trackData.line && map.getLayer(trackData.line)) {{
-            map.removeLayer(trackData.line);
-            map.removeSource(trackData.line);
-        }}
-    }});
-    trackMarkers = {{}};
-}};
+window.clearRegions = () => {{ regionLayers.forEach(id => {{ if(map.getLayer(id)) map.removeLayer(id); if(map.getSource(id)) map.removeSource(id); }}); regionLayers = []; }};
+window.addRegion = (r) => {{ if(!r || !r.vertices || r.vertices.length < 3) return; try {{ const id = 'region-' + Math.random().toString(36).substr(2, 9); const coords = r.vertices.map(v => [v.lng, v.lat]); coords.push(coords[0]); map.addSource(id, {{ type: 'geojson', data: {{ type: 'Feature', geometry: {{ type: 'Polygon', coordinates: [coords] }}, properties: {{ name: r.name, exclusion: r.exclusion }} }} }}); map.addLayer({{ id: id + '-fill', type: 'fill', source: id, paint: {{ 'fill-color': r.color || '#ff0000', 'fill-opacity': r.fill || 0.2 }} }}); map.addLayer({{ id: id + '-outline', type: 'line', source: id, paint: {{ 'line-color': r.color || '#ff0000', 'line-width': 2, 'line-dasharray': r.exclusion ? [2,2] : null }} }}); regionLayers.push(id, id+'-fill', id+'-outline'); }} catch(e) {{ console.error(e); }} }};
+window.updateTracks = (tracks) => {{ if(!tracks || !tracks.length) return; tracks.forEach(t => {{ const id = t.id; const pos = [t.lng, t.lat]; if(!trackMarkers[id]) {{ const el = document.createElement('img'); el.src = iconMap[t.classification] || iconMap.unknown; el.className = 'track-icon'; trackMarkers[id] = {{ marker: new mapboxgl.Marker({{element: el}}).setLngLat(pos).addTo(map), tailPoints: [pos], line: null }}; }} else {{ trackMarkers[id].marker.setLngLat(pos); }} }}); }};
+window.clearAllTracks = () => {{ Object.values(trackMarkers).forEach(t => t.marker.remove()); trackMarkers = {{}}; }};
+window.clearInactiveTracks = (ids) => {{ Object.keys(trackMarkers).forEach(id => {{ if(!ids.includes(parseInt(id))) {{ trackMarkers[id].marker.remove(); delete trackMarkers[id]; }} }}); }};
 </script>
 </body>
 </html>";
 
-			// Replace icon placeholders with actual base64 data URIs
+			// Replace icon placeholders
 			html = html.Replace("__PERSON_ICON__", personIcon);
 			html = html.Replace("__VEHICLE_ICON__", vehicleIcon);
 			html = html.Replace("__DRONE_ICON__", droneIcon);

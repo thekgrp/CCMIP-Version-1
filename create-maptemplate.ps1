@@ -1,3 +1,6 @@
+Write-Host "Creating MapTemplate.cs..." -ForegroundColor Yellow
+
+$content = @'
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -89,3 +92,7 @@ window.clearRegions = function() {{ }};
 		}
 	}
 }
+'@
+
+Set-Content "Client\MapTemplate.cs" -Value $content -NoNewline
+Write-Host "MapTemplate.cs created!" -ForegroundColor Green
